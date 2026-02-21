@@ -1,0 +1,70 @@
+# =============================================================================
+# Recommender System Configuration
+# =============================================================================
+
+# --- Paths ---
+paths:
+  raw_data_dir: "data/raw"
+  processed_data_dir: "data/processed"
+  checkpoints_dir: "checkpoints"
+  logs_dir: "logs"
+  vocab_dir: "data/vocab"
+
+# --- Data ---
+data:
+  dataset_url: "https://files.grouplens.org/datasets/movielens/ml-1m.zip"
+  dataset_name: "ml-1m"
+  min_rating_for_positive: 4  # ratings >= this are positive labels for ranking
+  negative_sample_ratio: 4    # 1 positive : N negatives for ranking
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  random_seed: 42
+
+# --- Feature Engineering ---
+features:
+  user_id_embedding_dim: 32
+  movie_id_embedding_dim: 32
+  gender_embedding_dim: 4
+  age_embedding_dim: 8
+  occupation_embedding_dim: 8
+  genre_embedding_dim: 16
+  num_genres: 18  # total unique genres in MovieLens
+
+# --- Candidate Generation (Two-Tower) ---
+candidate_gen:
+  embedding_dim: 64          # final user/item embedding dimension
+  user_hidden_dims: [128, 64]
+  item_hidden_dims: [128, 64]
+  dropout: 0.1
+  temperature: 0.05          # for contrastive loss scaling
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  batch_size: 1024
+  num_epochs: 20
+  top_k: 100                 # retrieve top-K candidates
+  early_stopping_patience: 5
+
+# --- Ranking Model ---
+ranking:
+  hidden_dims: [256, 128, 64]
+  dropout: 0.2
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  batch_size: 512
+  num_epochs: 15
+  early_stopping_patience: 5
+
+# --- Training ---
+training:
+  device: "auto"              # "auto", "cuda", or "cpu"
+  gradient_clip_norm: 1.0
+  use_mixed_precision: false  # set true if GPU supports it
+  num_workers: 0              # DataLoader workers (0 = main process)
+  log_every_n_steps: 100
+  seed: 42
+
+# --- Evaluation ---
+evaluation:
+  ks: [5, 10, 20]            # K values for Hit Rate@K, NDCG@K, Recall@K
+  num_eval_users: 1000       # subsample users for faster eval
