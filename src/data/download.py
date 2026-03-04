@@ -1,8 +1,3 @@
-"""
-Download and extract the MovieLens-1M dataset.
-
-Idempotent: skips download if data already exists locally.
-"""
 import os
 import zipfile
 import urllib.request
