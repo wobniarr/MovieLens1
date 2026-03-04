@@ -111,3 +111,15 @@ All hyperparameters are in `configs/default.yaml`. Key settings:
 
 **MovieLens-1M**: ~1 million ratings from 6,040 users on 3,706 movies.
 Data is split temporally (80/10/10 train/val/test) to avoid data leakage.
+
+
+## Notes
+
+Global temporal split is used over leave-last-out split to prevent potential data leakage.
+
+There are 3 categories of samples:
+1. Observed positive samples: Interactions with rating >= min_rating
+2. Observed negative samples: Interactions with rating < min_rating
+3. Synthetic negative samples: Randomly sampled from the set of movies the user hasn't interacted with, weighted by movie popularity. 
+
+The synthetic negative samples have a 4:1 ratio with all observed samples (positive and negative) meaning that the the true ratio of negative to positive samples is closer to 5:1.
