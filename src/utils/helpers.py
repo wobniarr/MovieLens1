@@ -12,55 +12,37 @@ import torch
 
 
 def load_config(config_path: str = "configs/default.yaml") -> dict:
-    """
-    Returns:
-        Dictionary with configuration values.
-    """
+    """Loads a YAML configuration file."""
     config_path = Path(config_path)
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
-    with open(config_path, "r") as f:
-        config = yaml.safe_load(f)
-
-    return config
+    with config_path.open("r") as f:
+        return yaml.safe_load(f)
 
 
 def set_seed(seed: int = 42) -> None:
+    """Initialize global random seed for reproducibility."""
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
 
 
 def get_device(preference: str = "auto") -> torch.device:
-    """Get the best available compute device.
-
-    Args:
-        preference: "auto" (pick best), "cuda", or "cpu".
-
-    Returns:
-        torch.device instance.
-    """
+    """Get the best available compute device."""
     if preference == "auto":
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-        else:
-            device = torch.device("cpu")
-    else:
-        device = torch.device(preference)
+        preference = "cuda" if torch.cuda.is_available() else "cpu"
 
-    return device
+    return torch.device(preference)
 
 
 def get_logger(name: str, log_dir: str = None, level: int = logging.INFO) -> logging.Logger:
     """Create a configured logger with console and optional file output.
 
     Args:
-        name: Logger name (typically module name).
+        name: Logger name (module name).
         log_dir: Directory for log files. If None, logs only to console.
         level: Logging level.
 
@@ -97,14 +79,7 @@ def get_logger(name: str, log_dir: str = None, level: int = logging.INFO) -> log
 
 
 def ensure_dir(path: str) -> Path:
-    """Create directory if it doesn't exist and return the Path.
-
-    Args:
-        path: Directory path to ensure exists.
-
-    Returns:
-        Path object for the directory.
-    """
+    """Create directory if it doesn't exist."""
     p = Path(path)
     p.mkdir(parents=True, exist_ok=True)
     return p
