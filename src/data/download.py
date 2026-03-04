@@ -9,14 +9,7 @@ logger = get_logger(__name__)
 
 
 def download_movielens(config: dict) -> Path:
-    """Download and extract MovieLens-1M dataset.
-
-    Args:
-        config: Configuration dictionary with paths and data settings.
-
-    Returns:
-        Path to the extracted dataset directory.
-    """
+    """One-time download and extraction of MovieLens-1M dataset."""
     raw_dir = Path(config["paths"]["raw_data_dir"])
     dataset_name = config["data"]["dataset_name"]
     dataset_url = config["data"]["dataset_url"]
@@ -27,7 +20,7 @@ def download_movielens(config: dict) -> Path:
 
     # Check if already extracted
     if dataset_dir.exists() and any(dataset_dir.iterdir()):
-        logger.info(f"Dataset already exists at {dataset_dir}. Skipping download.")
+        logger.info(f"Dataset already extracted at {dataset_dir}. Skipping download.")
         return dataset_dir
 
     # Download

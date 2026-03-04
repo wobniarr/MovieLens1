@@ -71,21 +71,17 @@ def _merge_data(
     return df
 
 
-def _add_implicit_signal(df: pd.DataFrame, min_rating: int) -> pd.DataFrame:
-    """Add implicit binary signal and positive label columns.
-
-    - implicit = 1 for all observed interactions (user actually rated the movie)
-    - label = 1 if rating >= min_rating (positive for ranking), else 0
+def _add_labels(df: pd.DataFrame, min_rating: int) -> pd.DataFrame:
+    """Add positive label column based on rating threshold.
 
     Args:
         df: Merged DataFrame with rating column.
         min_rating: Threshold for positive label.
 
     Returns:
-        DataFrame with added 'implicit' and 'label' columns.
+        DataFrame with added 'label' column.
     """
     df = df.copy()
-    df["implicit"] = 1  # All observed interactions are implicit positives
     df["label"] = (df["rating"] >= min_rating).astype(int)
     logger.info(
         f"Labels: {df['label'].sum():,} positives, "
@@ -148,7 +144,7 @@ def _generate_negative_samples(
         seed: Random seed.
 
     Returns:
-        DataFrame of negative samples with implicit=0, label=0, rating=0.
+        DataFrame of negative samples with label=0, rating=0.
     """
     rng = np.random.RandomState(seed)
     user_groups = df.groupby("user_id")
@@ -187,7 +183,6 @@ def _generate_negative_samples(
                 "zip_code": user_info["zip_code"],
                 "title": "",
                 "genres": "",
-                "implicit": 0,
                 "label": 0,
             })
 
@@ -202,7 +197,7 @@ def preprocess_data(config: dict) -> dict:
     Steps:
     1. Load raw data files
     2. Merge into single DataFrame
-    3. Add implicit signal and labels
+    3. Add labels
     4. Temporal train/val/test split
     5. Generate negative samples for ranking (train set only)
     6. Save processed data as parquet files
@@ -227,10 +222,10 @@ def preprocess_data(config: dict) -> dict:
     logger.info("Step 2: Merging datasets...")
     df = _merge_data(ratings, users, movies)
 
-    # Step 3: Add implicit signal and labels
-    logger.info("Step 3: Adding implicit signal and labels...")
+    # Step 3: Add labels
+    logger.info("Step 3: Adding labels...")
     min_rating = config["data"]["min_rating_for_positive"]
-    df = _add_implicit_signal(df, min_rating)
+    df = _add_labels(df, min_rating)
 
     # Step 4: Temporal split
     logger.info("Step 4: Performing temporal train/val/test split...")
@@ -269,7 +264,7 @@ def preprocess_data(config: dict) -> dict:
         "movies": processed_dir / "movies.parquet",
     }
 
-    # Candidate gen uses only positive interactions (implicit=1)
+    # Candidate gen uses only positive interactions
     train_df.to_parquet(save_paths["train_candidate_gen"], index=False)
     train_ranking_df.to_parquet(save_paths["train_ranking"], index=False)
     val_df.to_parquet(save_paths["val"], index=False)

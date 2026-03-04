@@ -4,8 +4,8 @@ End-to-end recommendation inference pipeline.
 Two-stage process:
 1. Candidate Generation: Use the Two-Tower model to retrieve top-K candidate
    movies via dot-product similarity between user and item embeddings.
-2. Ranking: Score the candidates with the Ranking model using hybrid features
-   (explicit rating + implicit signal) and return the final ranked list.
+2. Ranking: Score the candidates with the Ranking model using explicit
+   rating features and return the final ranked list.
 """
 from typing import Dict, List, Tuple
 
@@ -153,7 +153,6 @@ class RecommendationPipeline:
             "movie_id": [],
             "genres": [],
             "rating": [],
-            "implicit": [],
         }
 
         for movie_id in candidate_ids:
@@ -166,9 +165,8 @@ class RecommendationPipeline:
             batch["occupation"].append(self.encoder.encode_occupation(user_info["occupation"]))
             batch["movie_id"].append(self.encoder.encode_movie_id(movie_id))
             batch["genres"].append(self.encoder.encode_genres(genres_str))
-            # For inference: no prior rating, mark as new interaction
+            # For inference: no prior rating
             batch["rating"].append(0.0)
-            batch["implicit"].append(0.0)
 
         # Convert to tensors
         tensor_batch = {
@@ -179,7 +177,6 @@ class RecommendationPipeline:
             "movie_id": torch.tensor(batch["movie_id"], dtype=torch.long).to(self.device),
             "genres": torch.stack([torch.tensor(g, dtype=torch.float) for g in batch["genres"]]).to(self.device),
             "rating": torch.tensor(batch["rating"], dtype=torch.float).to(self.device),
-            "implicit": torch.tensor(batch["implicit"], dtype=torch.float).to(self.device),
         }
 
         logits = self.ranker(tensor_batch)

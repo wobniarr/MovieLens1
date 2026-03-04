@@ -1,9 +1,9 @@
 """
-Deep Ranking model with hybrid features (explicit + implicit).
+Deep Ranking model with explicit rating features.
 
-Takes user features, item features, explicit rating, implicit signal,
-and cross features as input. Uses an MLP with batch normalization,
-dropout, and residual connections to predict interaction probability.
+Takes user features, item features, explicit rating, and cross features
+as input. Uses an MLP with batch normalization, dropout, and residual
+connections to predict interaction probability.
 """
 import torch
 import torch.nn as nn
@@ -34,13 +34,12 @@ class ResidualBlock(nn.Module):
 
 
 class RankingModel(nn.Module):
-    """Deep ranking model with hybrid feedback features.
+    """Deep ranking model.
 
     Inputs:
     - User features: user_id, gender, age, occupation embeddings
     - Item features: movie_id, genres embeddings
     - Explicit rating (continuous, 0-5)
-    - Implicit signal (binary, 0 or 1)
     - Cross features: user×genre interaction
 
     Output: logit score for binary classification (will user enjoy this?)
@@ -91,7 +90,7 @@ class RankingModel(nn.Module):
             + feat_cfg["occupation_embedding_dim"]
         )
         item_dim = feat_cfg["movie_id_embedding_dim"] + feat_cfg["genre_embedding_dim"]
-        hybrid_dim = 2  # explicit rating (1) + implicit signal (1)
+        hybrid_dim = 1  # explicit rating
         cross_dim = 32  # user×genre projection
 
         total_input_dim = user_dim + item_dim + hybrid_dim + cross_dim
@@ -116,7 +115,7 @@ class RankingModel(nn.Module):
 
         Args:
             batch: Dictionary with all feature tensors including
-                   'rating' (explicit) and 'implicit' (binary).
+                   'rating' (explicit).
 
         Returns:
             Logit scores of shape (batch_size, 1).
@@ -138,15 +137,14 @@ class RankingModel(nn.Module):
         ).flatten(1)                    # (B, user_dim * genre_dim)
         cross = self.user_genre_proj(cross)
 
-        # === Hybrid feedback features ===
+        # === Explicit rating feature ===
         rating = batch["rating"].unsqueeze(-1)     # (B, 1) explicit rating
-        implicit = batch["implicit"].unsqueeze(-1)  # (B, 1) implicit signal
 
         # === Concatenate all features ===
         x = torch.cat([
             user_id_vec, gender_vec, age_vec, occupation_vec,  # User
             movie_id_vec, genre_vec,                            # Item
-            rating, implicit,                                   # Hybrid feedback
+            rating,                                             # Explicit feedback
             cross,                                              # Cross features
         ], dim=-1)
 

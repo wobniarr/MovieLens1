@@ -3,8 +3,8 @@ PyTorch Dataset classes for Candidate Generation and Ranking.
 
 - CandidateGenDataset: Feeds the Two-Tower model. Uses in-batch negatives
   at training time, so only returns (user_features, item_features) pairs.
-- RankingDataset: Feeds the Ranking model with hybrid features (explicit
-  rating + implicit signal) and pre-sampled negatives.
+- RankingDataset: Feeds the Ranking model with explicit rating features
+  and pre-sampled negatives.
 """
 from typing import Dict
 
@@ -27,7 +27,7 @@ class CandidateGenDataset(Dataset):
         """Initialize the dataset.
 
         Args:
-            df: DataFrame of positive interactions (all have implicit=1).
+            df: DataFrame of positive interactions.
             encoder: Fitted FeatureEncoder for feature transformation.
         """
         self.encoder = encoder
@@ -67,9 +67,9 @@ class CandidateGenDataset(Dataset):
 
 
 class RankingDataset(Dataset):
-    """Dataset for the Ranking model with hybrid features.
+    """Dataset for the Ranking model.
 
-    Returns user features, item features, explicit rating, implicit signal,
+    Returns user features, item features, explicit rating,
     and the binary label (positive/negative). Includes pre-sampled negatives.
     """
 
@@ -78,7 +78,7 @@ class RankingDataset(Dataset):
 
         Args:
             df: DataFrame with both positive interactions and pre-sampled
-                negatives. Must contain 'rating', 'implicit', and 'label' cols.
+                negatives. Must contain 'rating' and 'label' columns.
             encoder: Fitted FeatureEncoder for feature transformation.
         """
         self.encoder = encoder
@@ -92,9 +92,8 @@ class RankingDataset(Dataset):
         self._occupations = np.array([encoder.encode_occupation(o) for o in self.df["occupation"]])
         self._genres = np.stack([encoder.encode_genres(g) for g in self.df["genres"]])
 
-        # Hybrid features
+        # Explicit rating and label
         self._ratings = self.df["rating"].values.astype(np.float32)
-        self._implicit = self.df["implicit"].values.astype(np.float32)
         self._labels = self.df["label"].values.astype(np.float32)
 
     def __len__(self) -> int:
@@ -106,7 +105,6 @@ class RankingDataset(Dataset):
         Returns:
             Dictionary with user/item features plus:
               - rating: (1,) explicit rating value (0 for negatives)
-              - implicit: (1,) binary implicit signal (1=observed, 0=unobserved)
               - label: (1,) binary label (1=positive, 0=negative)
         """
         return {
@@ -118,9 +116,8 @@ class RankingDataset(Dataset):
             # Item features
             "movie_id": torch.tensor(self._movie_ids[idx], dtype=torch.long),
             "genres": torch.tensor(self._genres[idx], dtype=torch.float),
-            # Hybrid feedback features
+            # Explicit rating
             "rating": torch.tensor(self._ratings[idx], dtype=torch.float),
-            "implicit": torch.tensor(self._implicit[idx], dtype=torch.float),
             # Target
             "label": torch.tensor(self._labels[idx], dtype=torch.float),
         }
