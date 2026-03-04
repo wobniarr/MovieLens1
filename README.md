@@ -123,3 +123,8 @@ There are 3 categories of samples:
 3. Synthetic negative samples: Randomly sampled from the set of movies the user hasn't interacted with, weighted by movie popularity. 
 
 The synthetic negative samples have a 4:1 ratio with all observed samples (positive and negative) meaning that the the true ratio of negative to positive samples is closer to 5:1.
+
+Candidate Generation uses a Two-Tower model with in-batch negatives. In-batch negatives are computationally cheap and provide massive scale, which suits the recall-focused goal of this stage.
+Ranking uses a deep MLP with residual connections and popularity-weighted pre-sampled negatives. Hard negatives (popular unseen movies) force the model to learn fine-grained user preferences, which suits the precision-focused goal of this stage.
+
+It is ensured that all feature vocabs (gender, age, occupation) are seen during training, but not all movie IDs are guaranteed to appear in the training set due to the temporal split. Movies only rated after the training cutoff have no learned embedding — this is the cold-start problem. However, this is partially mitigated by our hybrid approach, where content-based features (genres, user demographics) still provide a meaningful representation even when the movie ID embedding falls back to the padding index (0).

@@ -16,7 +16,7 @@ from src.utils import get_logger, ensure_dir
 
 logger = get_logger(__name__)
 
-# MovieLens-1M genre list (fixed order)
+# MovieLens-1M genre list (fixed order) pre-hardcoded because list is static and small. Also, allows us to conveniently parse pipe-separated genres.
 ALL_GENRES = [
     "Action", "Adventure", "Animation", "Children's", "Comedy", "Crime",
     "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror", "Musical",
@@ -32,11 +32,6 @@ class FeatureEncoder:
     """
 
     def __init__(self, config: dict):
-        """Initialize the feature encoder.
-
-        Args:
-            config: Configuration dictionary.
-        """
         self.config = config
         self.vocab_dir = Path(config["paths"]["vocab_dir"])
         self.vocabs: Dict[str, dict] = {}
@@ -57,8 +52,7 @@ class FeatureEncoder:
         categorical_cols = ["user_id", "movie_id", "gender", "age", "occupation"]
 
         for col in categorical_cols:
-            unique_vals = sorted(df[col].dropna().unique())
-            # Index 0 reserved for unknown
+            unique_vals = sorted(df[col].dropna().unique()) # Sort to ensure consistent ordering
             self.vocabs[col] = {str(v): i + 1 for i, v in enumerate(unique_vals)}
 
         logger.info("Built vocabularies:")
@@ -103,7 +97,7 @@ class FeatureEncoder:
 
     def encode_user_id(self, user_id) -> int:
         """Encode a user ID to its vocabulary index."""
-        return self.vocabs["user_id"].get(str(user_id), 0)
+        return self.vocabs["user_id"].get(str(user_id), 0)  # Returns padded index if user_id is not found
 
     def encode_movie_id(self, movie_id) -> int:
         """Encode a movie ID to its vocabulary index."""
