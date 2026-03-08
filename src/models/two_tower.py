@@ -40,33 +40,31 @@ class UserTower(nn.Module):
 
     def __init__(self, vocab_sizes: dict, config: dict):
         super().__init__()
-        feat_cfg = config["features"]
-        model_cfg = config["candidate_gen"]
 
         # Embedding layers
         self.user_id_emb = nn.Embedding(
-            vocab_sizes["user_id"], feat_cfg["user_id_embedding_dim"], padding_idx=0
+            vocab_sizes["user_id"], config["features"]["user_id_embedding_dim"], padding_idx=0
         )
         self.gender_emb = nn.Embedding(
-            vocab_sizes["gender"], feat_cfg["gender_embedding_dim"], padding_idx=0
+            vocab_sizes["gender"], config["features"]["gender_embedding_dim"], padding_idx=0
         )
         self.age_emb = nn.Embedding(
-            vocab_sizes["age"], feat_cfg["age_embedding_dim"], padding_idx=0
+            vocab_sizes["age"], config["features"]["age_embedding_dim"], padding_idx=0
         )
         self.occupation_emb = nn.Embedding(
-            vocab_sizes["occupation"], feat_cfg["occupation_embedding_dim"], padding_idx=0
+            vocab_sizes["occupation"], config["features"]["occupation_embedding_dim"], padding_idx=0
         )
 
         # Calculate total input dimension
         total_dim = (
-            feat_cfg["user_id_embedding_dim"]
-            + feat_cfg["gender_embedding_dim"]
-            + feat_cfg["age_embedding_dim"]
-            + feat_cfg["occupation_embedding_dim"]
+            config["features"]["user_id_embedding_dim"]
+            + config["features"]["gender_embedding_dim"]
+            + config["features"]["age_embedding_dim"]
+            + config["features"]["occupation_embedding_dim"]
         )
 
         # MLP to project to shared embedding space
-        self.mlp = MLP(total_dim, model_cfg["user_hidden_dims"], model_cfg["dropout"])
+        self.mlp = MLP(total_dim, config["candidate_gen"]["user_hidden_dims"], config["candidate_gen"]["dropout"])
 
     def forward(self, user_id, gender, age, occupation) -> torch.Tensor:
         """Compute user embedding.
@@ -89,22 +87,20 @@ class ItemTower(nn.Module):
 
     def __init__(self, vocab_sizes: dict, config: dict):
         super().__init__()
-        feat_cfg = config["features"]
-        model_cfg = config["candidate_gen"]
 
         # Embedding layers
         self.movie_id_emb = nn.Embedding(
-            vocab_sizes["movie_id"], feat_cfg["movie_id_embedding_dim"], padding_idx=0
+            vocab_sizes["movie_id"], config["features"]["movie_id_embedding_dim"], padding_idx=0
         )
         self.genre_proj = nn.Linear(
-            vocab_sizes["genres"], feat_cfg["genre_embedding_dim"]
+            vocab_sizes["genres"], config["features"]["genre_embedding_dim"]
         )
 
         # Calculate total input dimension
-        total_dim = feat_cfg["movie_id_embedding_dim"] + feat_cfg["genre_embedding_dim"]
+        total_dim = config["features"]["movie_id_embedding_dim"] + config["features"]["genre_embedding_dim"]
 
         # MLP to project to shared embedding space
-        self.mlp = MLP(total_dim, model_cfg["item_hidden_dims"], model_cfg["dropout"])
+        self.mlp = MLP(total_dim, config["candidate_gen"]["item_hidden_dims"], config["candidate_gen"]["dropout"])
 
     def forward(self, movie_id, genres) -> torch.Tensor:
         """Compute item embedding.

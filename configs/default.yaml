@@ -40,6 +40,7 @@ candidate_gen:
 
 ranking:
   hidden_dims: [256, 128, 64]
+  cross_feature_dim: 32
   dropout: 0.2
   learning_rate: 0.001
   weight_decay: 0.0001

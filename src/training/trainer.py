@@ -61,15 +61,11 @@ class Trainer:
         self.device = device
         self.eval_fn = eval_fn
 
-        # Get stage-specific config
-        stage_cfg = config[stage]
-        train_cfg = config["training"]
-
         # Optimizer
         self.optimizer = Adam(
             model.parameters(),
-            lr=stage_cfg["learning_rate"],
-            weight_decay=stage_cfg["weight_decay"],
+            lr=config[stage]["learning_rate"],
+            weight_decay=config[stage]["weight_decay"],
         )
 
         # Learning rate scheduler
@@ -78,10 +74,10 @@ class Trainer:
         )
 
         # Training settings
-        self.num_epochs = stage_cfg["num_epochs"]
-        self.gradient_clip_norm = train_cfg["gradient_clip_norm"]
-        self.early_stopping_patience = stage_cfg["early_stopping_patience"]
-        self.log_every_n_steps = train_cfg["log_every_n_steps"]
+        self.num_epochs = config[stage]["num_epochs"]
+        self.gradient_clip_norm = config["training"]["gradient_clip_norm"]
+        self.early_stopping_patience = config[stage]["early_stopping_patience"]
+        self.log_every_n_steps = config["training"]["log_every_n_steps"]
 
         # Checkpointing
         self.checkpoint_dir = ensure_dir(

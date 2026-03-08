@@ -7,7 +7,6 @@ connections to predict interaction probability.
 """
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from typing import Dict
 
 
@@ -22,7 +21,6 @@ class ResidualBlock(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout),
         )
-        # Projection for residual if dimensions differ
         self.residual_proj = (
             nn.Linear(input_dim, hidden_dim)
             if input_dim != hidden_dim
@@ -40,9 +38,9 @@ class RankingModel(nn.Module):
     - User features: user_id, gender, age, occupation embeddings
     - Item features: movie_id, genres embeddings
     - Explicit rating (continuous, 0-5)
-    - Cross features: user×genre interaction
+    - Cross features: user*genre interaction
 
-    Output: logit score for binary classification (will user enjoy this?)
+    Output: logit score for binary classification
     """
 
     def __init__(self, vocab_sizes: dict, config: dict):
@@ -53,51 +51,49 @@ class RankingModel(nn.Module):
             config: Full configuration dictionary.
         """
         super().__init__()
-        feat_cfg = config["features"]
-        rank_cfg = config["ranking"]
 
-        # === Embedding layers ===
+        # Embedding layers
         self.user_id_emb = nn.Embedding(
-            vocab_sizes["user_id"], feat_cfg["user_id_embedding_dim"], padding_idx=0
+            vocab_sizes["user_id"], config["features"]["user_id_embedding_dim"], padding_idx=0
         )
         self.gender_emb = nn.Embedding(
-            vocab_sizes["gender"], feat_cfg["gender_embedding_dim"], padding_idx=0
+            vocab_sizes["gender"], config["features"]["gender_embedding_dim"], padding_idx=0
         )
         self.age_emb = nn.Embedding(
-            vocab_sizes["age"], feat_cfg["age_embedding_dim"], padding_idx=0
+            vocab_sizes["age"], config["features"]["age_embedding_dim"], padding_idx=0
         )
         self.occupation_emb = nn.Embedding(
-            vocab_sizes["occupation"], feat_cfg["occupation_embedding_dim"], padding_idx=0
+            vocab_sizes["occupation"], config["features"]["occupation_embedding_dim"], padding_idx=0
         )
         self.movie_id_emb = nn.Embedding(
-            vocab_sizes["movie_id"], feat_cfg["movie_id_embedding_dim"], padding_idx=0
+            vocab_sizes["movie_id"], config["features"]["movie_id_embedding_dim"], padding_idx=0
         )
         self.genre_proj = nn.Linear(
-            vocab_sizes["genres"], feat_cfg["genre_embedding_dim"]
+            vocab_sizes["genres"], config["features"]["genre_embedding_dim"]
         )
 
-        # === Cross feature: user embedding × genre vector ===
+        # Cross feature: user embedding * genre vector
+        cross_dim = config["ranking"]["cross_feature_dim"]
         self.user_genre_proj = nn.Linear(
-            feat_cfg["user_id_embedding_dim"] * feat_cfg["genre_embedding_dim"],
-            32,  # Cross feature dimension
+            config["features"]["user_id_embedding_dim"] * config["features"]["genre_embedding_dim"],
+            cross_dim
         )
 
-        # === Compute total input dimension ===
+        # Compute total input dimension
         user_dim = (
-            feat_cfg["user_id_embedding_dim"]
-            + feat_cfg["gender_embedding_dim"]
-            + feat_cfg["age_embedding_dim"]
-            + feat_cfg["occupation_embedding_dim"]
+            config["features"]["user_id_embedding_dim"]
+            + config["features"]["gender_embedding_dim"]
+            + config["features"]["age_embedding_dim"]
+            + config["features"]["occupation_embedding_dim"]
         )
-        item_dim = feat_cfg["movie_id_embedding_dim"] + feat_cfg["genre_embedding_dim"]
+        item_dim = config["features"]["movie_id_embedding_dim"] + config["features"]["genre_embedding_dim"]
         hybrid_dim = 1  # explicit rating
-        cross_dim = 32  # user×genre projection
 
         total_input_dim = user_dim + item_dim + hybrid_dim + cross_dim
 
-        # === MLP with residual connections ===
-        hidden_dims = rank_cfg["hidden_dims"]
-        dropout = rank_cfg["dropout"]
+        # MLP with residual connections
+        hidden_dims = config["ranking"]["hidden_dims"]
+        dropout = config["ranking"]["dropout"]
 
         layers = []
         prev_dim = total_input_dim
@@ -107,7 +103,7 @@ class RankingModel(nn.Module):
 
         self.mlp = nn.Sequential(*layers)
 
-        # Final prediction layer
+        # Map MLP output to final prediction layer
         self.output_layer = nn.Linear(prev_dim, 1)
 
     def forward(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
@@ -118,38 +114,38 @@ class RankingModel(nn.Module):
                    'rating' (explicit).
 
         Returns:
-            Logit scores of shape (batch_size, 1).
+            Logit scores of shape (batch_size,).
         """
-        # === User features ===
+        # User features
         user_id_vec = self.user_id_emb(batch["user_id"])
         gender_vec = self.gender_emb(batch["gender"])
         age_vec = self.age_emb(batch["age"])
         occupation_vec = self.occupation_emb(batch["occupation"])
 
-        # === Item features ===
+        # Item features
         movie_id_vec = self.movie_id_emb(batch["movie_id"])
         genre_vec = self.genre_proj(batch["genres"])
 
-        # === Cross features: user_id_emb × genre_emb (outer product → flatten → project) ===
+        # Cross features: user_id_emb * genre_emb (outer product -> flatten -> project)
         cross = torch.bmm(
             user_id_vec.unsqueeze(2),   # (B, user_dim, 1)
             genre_vec.unsqueeze(1),     # (B, 1, genre_dim)
         ).flatten(1)                    # (B, user_dim * genre_dim)
         cross = self.user_genre_proj(cross)
 
-        # === Explicit rating feature ===
+        # Explicit rating feature
         rating = batch["rating"].unsqueeze(-1)     # (B, 1) explicit rating
 
-        # === Concatenate all features ===
+        # Concatenate all features
         x = torch.cat([
-            user_id_vec, gender_vec, age_vec, occupation_vec,  # User
+            user_id_vec, gender_vec, age_vec, occupation_vec,   # User
             movie_id_vec, genre_vec,                            # Item
             rating,                                             # Explicit feedback
             cross,                                              # Cross features
         ], dim=-1)
 
-        # === MLP with residual connections ===
+        # MLP with residual connections
         x = self.mlp(x)
         logits = self.output_layer(x)
 
-        return logits.squeeze(-1)
+        return logits.squeeze(-1)  # (B,)
