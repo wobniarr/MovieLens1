@@ -27,8 +27,8 @@ features:
 # --- Candidate Generation (Two-Tower) ---
 candidate_gen:
   embedding_dim: 64
-  user_hidden_dims: [128, 64]
-  item_hidden_dims: [128, 64]
+  user_hidden_dims: [128]
+  item_hidden_dims: [128]
   dropout: 0.1
   temperature: 0.05          # for contrastive loss scaling
   learning_rate: 0.001

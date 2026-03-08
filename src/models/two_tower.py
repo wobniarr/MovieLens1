@@ -2,8 +2,8 @@
 Two-Tower (Dual Encoder) model for candidate generation.
 
 Architecture:
-- User Tower: embeddings for user_id, gender, age, occupation → MLP → user embedding
-- Item Tower: embeddings for movie_id + genre multi-hot → MLP → item embedding
+- User Tower: embeddings for user_id, gender, age, occupation -> MLP -> projection -> user embedding
+- Item Tower: embeddings for movie_id + genre multi-hot -> MLP -> projection -> item embedding
 - Similarity: dot product between user and item embeddings
 
 Trained with in-batch contrastive loss for recall-focused retrieval.
@@ -15,7 +15,7 @@ from typing import Dict
 
 
 class MLP(nn.Module):
-    """Multi-layer perceptron with batch normalization and dropout."""
+    """MLP with batch normalization and dropout."""
 
     def __init__(self, input_dim: int, hidden_dims: list, dropout: float = 0.1):
         super().__init__()
@@ -39,6 +39,12 @@ class UserTower(nn.Module):
     """User tower: embeds user features and projects to shared embedding space."""
 
     def __init__(self, vocab_sizes: dict, config: dict):
+        """Initialize the user tower.
+
+        Args:
+            vocab_sizes: Dictionary of vocabulary sizes from FeatureEncoder.
+            config: Full configuration dictionary.
+        """
         super().__init__()
 
         # Embedding layers
@@ -65,9 +71,16 @@ class UserTower(nn.Module):
 
         # MLP to project to shared embedding space
         self.mlp = MLP(total_dim, config["candidate_gen"]["user_hidden_dims"], config["candidate_gen"]["dropout"])
+        self.projection = nn.Linear(config["candidate_gen"]["user_hidden_dims"][-1], config["candidate_gen"]["embedding_dim"])
 
     def forward(self, user_id, gender, age, occupation) -> torch.Tensor:
         """Compute user embedding.
+
+        Args:
+            user_id: User ID tensor of shape (batch_size,).
+            gender: Gender tensor of shape (batch_size,).
+            age: Age tensor of shape (batch_size,).
+            occupation: Occupation tensor of shape (batch_size,).
 
         Returns:
             L2-normalized user embedding of shape (batch_size, embedding_dim).
@@ -79,6 +92,7 @@ class UserTower(nn.Module):
             self.occupation_emb(occupation),
         ], dim=-1)
         x = self.mlp(x)
+        x = self.projection(x)
         return F.normalize(x, p=2, dim=-1)
 
 
@@ -86,6 +100,12 @@ class ItemTower(nn.Module):
     """Item tower: embeds item features and projects to shared embedding space."""
 
     def __init__(self, vocab_sizes: dict, config: dict):
+        """Initialize the item tower.
+
+        Args:
+            vocab_sizes: Dictionary of vocabulary sizes from FeatureEncoder.
+            config: Full configuration dictionary.
+        """
         super().__init__()
 
         # Embedding layers
@@ -101,9 +121,14 @@ class ItemTower(nn.Module):
 
         # MLP to project to shared embedding space
         self.mlp = MLP(total_dim, config["candidate_gen"]["item_hidden_dims"], config["candidate_gen"]["dropout"])
+        self.projection = nn.Linear(config["candidate_gen"]["item_hidden_dims"][-1], config["candidate_gen"]["embedding_dim"])
 
     def forward(self, movie_id, genres) -> torch.Tensor:
         """Compute item embedding.
+
+        Args:
+            movie_id: Movie ID tensor of shape (batch_size,).
+            genres: Multi-hot genre tensor of shape (batch_size, num_genres).
 
         Returns:
             L2-normalized item embedding of shape (batch_size, embedding_dim).
@@ -113,6 +138,7 @@ class ItemTower(nn.Module):
             self.genre_proj(genres),
         ], dim=-1)
         x = self.mlp(x)
+        x = self.projection(x)
         return F.normalize(x, p=2, dim=-1)
 
 

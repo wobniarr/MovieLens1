@@ -79,7 +79,7 @@ class RankingModel(nn.Module):
             cross_dim
         )
 
-        # Compute total input dimension
+        # Calculate total input dimension
         user_dim = (
             config["features"]["user_id_embedding_dim"]
             + config["features"]["gender_embedding_dim"]
