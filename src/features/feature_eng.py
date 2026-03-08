@@ -4,10 +4,10 @@ Feature engineering: encode categorical features and build vocabularies.
 Handles user features (user_id, gender, age, occupation) and item features
 (movie_id, genres multi-hot). Vocabularies are saved to disk for inference.
 """
-import os
+
 import json
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -18,9 +18,24 @@ logger = get_logger(__name__)
 
 # MovieLens-1M genre list (fixed order) pre-hardcoded because list is static and small. Also, allows us to conveniently parse pipe-separated genres.
 ALL_GENRES = [
-    "Action", "Adventure", "Animation", "Children's", "Comedy", "Crime",
-    "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror", "Musical",
-    "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western",
+    "Action",
+    "Adventure",
+    "Animation",
+    "Children's",
+    "Comedy",
+    "Crime",
+    "Documentary",
+    "Drama",
+    "Fantasy",
+    "Film-Noir",
+    "Horror",
+    "Musical",
+    "Mystery",
+    "Romance",
+    "Sci-Fi",
+    "Thriller",
+    "War",
+    "Western",
 ]
 
 
@@ -52,7 +67,9 @@ class FeatureEncoder:
         categorical_cols = ["user_id", "movie_id", "gender", "age", "occupation"]
 
         for col in categorical_cols:
-            unique_vals = sorted(df[col].dropna().unique()) # Sort to ensure consistent ordering
+            unique_vals = sorted(
+                df[col].dropna().unique()
+            )  # Sort to ensure consistent ordering
             self.vocabs[col] = {str(v): i + 1 for i, v in enumerate(unique_vals)}
 
         logger.info("Built vocabularies:")
@@ -97,7 +114,9 @@ class FeatureEncoder:
 
     def encode_user_id(self, user_id) -> int:
         """Encode a user ID to its vocabulary index."""
-        return self.vocabs["user_id"].get(str(user_id), 0)  # Returns padded index if user_id is not found
+        return self.vocabs["user_id"].get(
+            str(user_id), 0
+        )  # Returns padded index if user_id is not found
 
     def encode_movie_id(self, movie_id) -> int:
         """Encode a movie ID to its vocabulary index."""

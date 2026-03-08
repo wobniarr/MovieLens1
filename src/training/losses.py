@@ -7,6 +7,7 @@ Loss functions for candidate generation and ranking models.
 
 - RankingLoss: Binary cross-entropy with logits for the ranking model.
 """
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

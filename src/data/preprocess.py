@@ -5,7 +5,7 @@ Loads raw data, merges tables, engineers features, creates train/val/test
 splits with temporal ordering, and generates popularity-weighted negative
 samples for the ranking model.
 """
-import os
+
 from pathlib import Path
 from typing import Tuple
 
@@ -59,7 +59,9 @@ def _load_movies(data_dir: Path) -> pd.DataFrame:
     return movies
 
 
-def _merge_data(ratings: pd.DataFrame, users: pd.DataFrame, movies: pd.DataFrame) -> pd.DataFrame:
+def _merge_data(
+    ratings: pd.DataFrame, users: pd.DataFrame, movies: pd.DataFrame
+) -> pd.DataFrame:
     """Merge ratings, users, and movies into a single DataFrame."""
     df = ratings.merge(users, on="user_id", how="left")
     df = df.merge(movies, on="movie_id", how="left")
@@ -87,7 +89,9 @@ def _add_labels(df: pd.DataFrame, min_rating: int) -> pd.DataFrame:
     return df
 
 
-def _temporal_split(df: pd.DataFrame, train_ratio: float, val_ratio: float) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def _temporal_split(
+    df: pd.DataFrame, train_ratio: float, val_ratio: float
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Sort by timestamp, then split into train/val/test by ratio."""
     df = df.sort_values("timestamp").reset_index(drop=True)
     n = len(df)
@@ -105,7 +109,13 @@ def _temporal_split(df: pd.DataFrame, train_ratio: float, val_ratio: float) -> T
     return train_df, val_df, test_df
 
 
-def _generate_negative_samples(df: pd.DataFrame, all_movie_ids: np.ndarray, movie_popularity: pd.Series, ratio: int, seed: int) -> pd.DataFrame:
+def _generate_negative_samples(
+    df: pd.DataFrame,
+    all_movie_ids: np.ndarray,
+    movie_popularity: pd.Series,
+    ratio: int,
+    seed: int,
+) -> pd.DataFrame:
     """Generate popularity-weighted negative samples for ranking.
 
     For each user, sample `ratio` movies they haven't interacted with,
@@ -134,29 +144,37 @@ def _generate_negative_samples(df: pd.DataFrame, all_movie_ids: np.ndarray, movi
         watched = set(group["movie_id"].values)  # Set used for O(1) lookups
         candidates = np.array([m for m in all_movie_ids if m not in watched])
 
-        n_neg = min(len(group) * ratio, len(candidates))  # Make sure our negative samples don't exceed the number of movies the user hasn't watched
+        n_neg = min(
+            len(group) * ratio, len(candidates)
+        )  # Make sure our negative samples don't exceed the number of movies the user hasn't watched
 
-        pop_weights = np.array([movie_popularity.get(m, 1) for m in candidates], dtype=float)  # Get the popularity of each candidate movie
+        pop_weights = np.array(
+            [movie_popularity.get(m, 1) for m in candidates], dtype=float
+        )  # Get the popularity of each candidate movie
         pop_weights /= pop_weights.sum()  # Normalize the popularity weights to sum to 1
 
-        sampled = rng.choice(candidates, size=n_neg, replace=False, p=pop_weights)  # Generate random negative samples weighted by movie popularity
+        sampled = rng.choice(
+            candidates, size=n_neg, replace=False, p=pop_weights
+        )  # Generate random negative samples weighted by movie popularity
 
         user_info = user_features.loc[user_id]
         # Create negative samples as a dict and append to the list. Entire list is later converted to a DataFrame to avoid overhead of repeated DataFrame appends.
         for movie_id in sampled:
-            negative_rows.append({
-                "user_id": user_id,
-                "movie_id": movie_id,
-                "rating": 0,
-                "timestamp": 0,
-                "gender": user_info["gender"],
-                "age": user_info["age"],
-                "occupation": user_info["occupation"],
-                "zip_code": user_info["zip_code"],
-                "title": "",
-                "genres": "",
-                "label": 0,
-            })
+            negative_rows.append(
+                {
+                    "user_id": user_id,
+                    "movie_id": movie_id,
+                    "rating": 0,
+                    "timestamp": 0,
+                    "gender": user_info["gender"],
+                    "age": user_info["age"],
+                    "occupation": user_info["occupation"],
+                    "zip_code": user_info["zip_code"],
+                    "title": "",
+                    "genres": "",
+                    "label": 0,
+                }
+            )
 
     neg_df = pd.DataFrame(negative_rows)
     logger.info(f"Generated {len(neg_df):,} negative samples (ratio 1:{ratio})")
@@ -236,8 +254,12 @@ def preprocess_data(config: dict) -> dict:
         "movies": processed_dir / "movies.parquet",
     }
 
-    train_df.to_parquet(save_paths["train_candidate_gen"], index=False) # Candidate gen uses only positive interactions
-    train_ranking_df.to_parquet(save_paths["train_ranking"], index=False) # Ranking uses positives + negatives
+    train_df.to_parquet(
+        save_paths["train_candidate_gen"], index=False
+    )  # Candidate gen uses only positive interactions
+    train_ranking_df.to_parquet(
+        save_paths["train_ranking"], index=False
+    )  # Ranking uses positives + negatives
     val_df.to_parquet(save_paths["val"], index=False)
     test_df.to_parquet(save_paths["test"], index=False)
     movies.to_parquet(save_paths["movies"], index=False)

@@ -1,6 +1,7 @@
 """
 Utility helpers for configuration, seeding, device selection, and logging.
 """
+
 import os
 import random
 import logging
@@ -38,7 +39,9 @@ def get_device(preference: str = "auto") -> torch.device:
     return torch.device(preference)
 
 
-def get_logger(name: str, log_dir: str = None, level: int = logging.INFO) -> logging.Logger:
+def get_logger(
+    name: str, log_dir: str = None, level: int = logging.INFO
+) -> logging.Logger:
     """Create a configured logger with console and optional file output.
 
     Args:
@@ -69,9 +72,7 @@ def get_logger(name: str, log_dir: str = None, level: int = logging.INFO) -> log
     # File handler (optional)
     if log_dir is not None:
         os.makedirs(log_dir, exist_ok=True)
-        file_handler = logging.FileHandler(
-            os.path.join(log_dir, f"{name}.log")
-        )
+        file_handler = logging.FileHandler(os.path.join(log_dir, f"{name}.log"))
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 

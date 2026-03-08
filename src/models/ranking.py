@@ -5,6 +5,7 @@ Takes user features, item features, explicit rating, and cross features
 as input. Uses an MLP with batch normalization, dropout, and residual
 connections to predict interaction probability.
 """
+
 import torch
 import torch.nn as nn
 from typing import Dict
@@ -54,19 +55,27 @@ class RankingModel(nn.Module):
 
         # Embedding layers
         self.user_id_emb = nn.Embedding(
-            vocab_sizes["user_id"], config["features"]["user_id_embedding_dim"], padding_idx=0
+            vocab_sizes["user_id"],
+            config["features"]["user_id_embedding_dim"],
+            padding_idx=0,
         )
         self.gender_emb = nn.Embedding(
-            vocab_sizes["gender"], config["features"]["gender_embedding_dim"], padding_idx=0
+            vocab_sizes["gender"],
+            config["features"]["gender_embedding_dim"],
+            padding_idx=0,
         )
         self.age_emb = nn.Embedding(
             vocab_sizes["age"], config["features"]["age_embedding_dim"], padding_idx=0
         )
         self.occupation_emb = nn.Embedding(
-            vocab_sizes["occupation"], config["features"]["occupation_embedding_dim"], padding_idx=0
+            vocab_sizes["occupation"],
+            config["features"]["occupation_embedding_dim"],
+            padding_idx=0,
         )
         self.movie_id_emb = nn.Embedding(
-            vocab_sizes["movie_id"], config["features"]["movie_id_embedding_dim"], padding_idx=0
+            vocab_sizes["movie_id"],
+            config["features"]["movie_id_embedding_dim"],
+            padding_idx=0,
         )
         self.genre_proj = nn.Linear(
             vocab_sizes["genres"], config["features"]["genre_embedding_dim"]
@@ -75,8 +84,9 @@ class RankingModel(nn.Module):
         # Cross feature: user embedding * genre vector
         cross_dim = config["ranking"]["cross_feature_dim"]
         self.user_genre_proj = nn.Linear(
-            config["features"]["user_id_embedding_dim"] * config["features"]["genre_embedding_dim"],
-            cross_dim
+            config["features"]["user_id_embedding_dim"]
+            * config["features"]["genre_embedding_dim"],
+            cross_dim,
         )
 
         # Calculate total input dimension
@@ -86,7 +96,10 @@ class RankingModel(nn.Module):
             + config["features"]["age_embedding_dim"]
             + config["features"]["occupation_embedding_dim"]
         )
-        item_dim = config["features"]["movie_id_embedding_dim"] + config["features"]["genre_embedding_dim"]
+        item_dim = (
+            config["features"]["movie_id_embedding_dim"]
+            + config["features"]["genre_embedding_dim"]
+        )
         hybrid_dim = 1  # explicit rating
 
         total_input_dim = user_dim + item_dim + hybrid_dim + cross_dim
@@ -128,21 +141,28 @@ class RankingModel(nn.Module):
 
         # Cross features: user_id_emb * genre_emb (outer product -> flatten -> project)
         cross = torch.bmm(
-            user_id_vec.unsqueeze(2),   # (B, user_dim, 1)
-            genre_vec.unsqueeze(1),     # (B, 1, genre_dim)
-        ).flatten(1)                    # (B, user_dim * genre_dim)
+            user_id_vec.unsqueeze(2),  # (B, user_dim, 1)
+            genre_vec.unsqueeze(1),  # (B, 1, genre_dim)
+        ).flatten(1)  # (B, user_dim * genre_dim)
         cross = self.user_genre_proj(cross)
 
         # Explicit rating feature
-        rating = batch["rating"].unsqueeze(-1)     # (B, 1) explicit rating
+        rating = batch["rating"].unsqueeze(-1)  # (B, 1) explicit rating
 
         # Concatenate all features
-        x = torch.cat([
-            user_id_vec, gender_vec, age_vec, occupation_vec,   # User
-            movie_id_vec, genre_vec,                            # Item
-            rating,                                             # Explicit feedback
-            cross,                                              # Cross features
-        ], dim=-1)
+        x = torch.cat(
+            [
+                user_id_vec,
+                gender_vec,
+                age_vec,
+                occupation_vec,  # User
+                movie_id_vec,
+                genre_vec,  # Item
+                rating,  # Explicit feedback
+                cross,  # Cross features
+            ],
+            dim=-1,
+        )
 
         # MLP with residual connections
         x = self.mlp(x)

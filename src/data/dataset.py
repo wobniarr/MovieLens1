@@ -6,6 +6,7 @@ PyTorch Dataset classes for Candidate Generation and Ranking.
 - RankingDataset: Feeds the Ranking model with explicit rating features
   and pre-sampled negatives.
 """
+
 from typing import Dict
 
 import numpy as np
@@ -34,11 +35,17 @@ class CandidateGenDataset(Dataset):
         self.df = df.reset_index(drop=True)
 
         # Pre-encode all features for performance
-        self._user_ids = np.array([encoder.encode_user_id(uid) for uid in self.df["user_id"]])
-        self._movie_ids = np.array([encoder.encode_movie_id(mid) for mid in self.df["movie_id"]])
+        self._user_ids = np.array(
+            [encoder.encode_user_id(uid) for uid in self.df["user_id"]]
+        )
+        self._movie_ids = np.array(
+            [encoder.encode_movie_id(mid) for mid in self.df["movie_id"]]
+        )
         self._genders = np.array([encoder.encode_gender(g) for g in self.df["gender"]])
         self._ages = np.array([encoder.encode_age(a) for a in self.df["age"]])
-        self._occupations = np.array([encoder.encode_occupation(o) for o in self.df["occupation"]])
+        self._occupations = np.array(
+            [encoder.encode_occupation(o) for o in self.df["occupation"]]
+        )
         self._genres = np.stack([encoder.encode_genres(g) for g in self.df["genres"]])
 
     def __len__(self) -> int:
@@ -85,11 +92,17 @@ class RankingDataset(Dataset):
         self.df = df.reset_index(drop=True)
 
         # Pre-encode features
-        self._user_ids = np.array([encoder.encode_user_id(uid) for uid in self.df["user_id"]])
-        self._movie_ids = np.array([encoder.encode_movie_id(mid) for mid in self.df["movie_id"]])
+        self._user_ids = np.array(
+            [encoder.encode_user_id(uid) for uid in self.df["user_id"]]
+        )
+        self._movie_ids = np.array(
+            [encoder.encode_movie_id(mid) for mid in self.df["movie_id"]]
+        )
         self._genders = np.array([encoder.encode_gender(g) for g in self.df["gender"]])
         self._ages = np.array([encoder.encode_age(a) for a in self.df["age"]])
-        self._occupations = np.array([encoder.encode_occupation(o) for o in self.df["occupation"]])
+        self._occupations = np.array(
+            [encoder.encode_occupation(o) for o in self.df["occupation"]]
+        )
         self._genres = np.stack([encoder.encode_genres(g) for g in self.df["genres"]])
 
         # Explicit rating and label

@@ -7,12 +7,12 @@ Two-stage process:
 2. Ranking: Score the candidates with the Ranking model using explicit
    rating features and return the final ranked list.
 """
-from typing import Dict, List, Tuple
+
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 from src.features import FeatureEncoder
@@ -26,12 +26,10 @@ class ItemIndexDataset(Dataset):
     """Helper dataset for computing all item embeddings."""
 
     def __init__(self, movies_df: pd.DataFrame, encoder: FeatureEncoder):
-        self.movie_ids = np.array([
-            encoder.encode_movie_id(mid) for mid in movies_df["movie_id"]
-        ])
-        self.genres = np.stack([
-            encoder.encode_genres(g) for g in movies_df["genres"]
-        ])
+        self.movie_ids = np.array(
+            [encoder.encode_movie_id(mid) for mid in movies_df["movie_id"]]
+        )
+        self.genres = np.stack([encoder.encode_genres(g) for g in movies_df["genres"]])
         self.raw_movie_ids = movies_df["movie_id"].values
 
     def __len__(self):
@@ -162,7 +160,9 @@ class RecommendationPipeline:
             batch["user_id"].append(self.encoder.encode_user_id(user_info["user_id"]))
             batch["gender"].append(self.encoder.encode_gender(user_info["gender"]))
             batch["age"].append(self.encoder.encode_age(user_info["age"]))
-            batch["occupation"].append(self.encoder.encode_occupation(user_info["occupation"]))
+            batch["occupation"].append(
+                self.encoder.encode_occupation(user_info["occupation"])
+            )
             batch["movie_id"].append(self.encoder.encode_movie_id(movie_id))
             batch["genres"].append(self.encoder.encode_genres(genres_str))
             # For inference: no prior rating
@@ -173,9 +173,15 @@ class RecommendationPipeline:
             "user_id": torch.tensor(batch["user_id"], dtype=torch.long).to(self.device),
             "gender": torch.tensor(batch["gender"], dtype=torch.long).to(self.device),
             "age": torch.tensor(batch["age"], dtype=torch.long).to(self.device),
-            "occupation": torch.tensor(batch["occupation"], dtype=torch.long).to(self.device),
-            "movie_id": torch.tensor(batch["movie_id"], dtype=torch.long).to(self.device),
-            "genres": torch.stack([torch.tensor(g, dtype=torch.float) for g in batch["genres"]]).to(self.device),
+            "occupation": torch.tensor(batch["occupation"], dtype=torch.long).to(
+                self.device
+            ),
+            "movie_id": torch.tensor(batch["movie_id"], dtype=torch.long).to(
+                self.device
+            ),
+            "genres": torch.stack(
+                [torch.tensor(g, dtype=torch.float) for g in batch["genres"]]
+            ).to(self.device),
             "rating": torch.tensor(batch["rating"], dtype=torch.float).to(self.device),
         }
 
@@ -221,10 +227,19 @@ class RecommendationPipeline:
 
         # Stage 1: Candidate Generation
         user_features = {
-            "user_id": torch.tensor([self.encoder.encode_user_id(user_id)], dtype=torch.long).to(self.device),
-            "gender": torch.tensor([self.encoder.encode_gender(user_info["gender"])], dtype=torch.long).to(self.device),
-            "age": torch.tensor([self.encoder.encode_age(user_info["age"])], dtype=torch.long).to(self.device),
-            "occupation": torch.tensor([self.encoder.encode_occupation(user_info["occupation"])], dtype=torch.long).to(self.device),
+            "user_id": torch.tensor(
+                [self.encoder.encode_user_id(user_id)], dtype=torch.long
+            ).to(self.device),
+            "gender": torch.tensor(
+                [self.encoder.encode_gender(user_info["gender"])], dtype=torch.long
+            ).to(self.device),
+            "age": torch.tensor(
+                [self.encoder.encode_age(user_info["age"])], dtype=torch.long
+            ).to(self.device),
+            "occupation": torch.tensor(
+                [self.encoder.encode_occupation(user_info["occupation"])],
+                dtype=torch.long,
+            ).to(self.device),
         }
 
         candidate_ids, retrieval_scores = self._retrieve_candidates(
@@ -244,16 +259,20 @@ class RecommendationPipeline:
             movie_row = self.movies_df[self.movies_df["movie_id"] == movie_id]
             title = movie_row["title"].values[0] if len(movie_row) > 0 else "Unknown"
             genres = movie_row["genres"].values[0] if len(movie_row) > 0 else ""
-            results.append({
-                "movie_id": movie_id,
-                "title": title,
-                "genres": genres,
-                "retrieval_score": float(ret_score),
-                "ranking_score": float(rank_score),
-            })
+            results.append(
+                {
+                    "movie_id": movie_id,
+                    "title": title,
+                    "genres": genres,
+                    "retrieval_score": float(ret_score),
+                    "ranking_score": float(rank_score),
+                }
+            )
 
         results_df = pd.DataFrame(results)
-        results_df = results_df.sort_values("ranking_score", ascending=False).head(top_n_final)
+        results_df = results_df.sort_values("ranking_score", ascending=False).head(
+            top_n_final
+        )
         results_df = results_df.reset_index(drop=True)
         results_df.index += 1
         results_df.index.name = "rank"

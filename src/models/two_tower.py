@@ -8,6 +8,7 @@ Architecture:
 
 Trained with in-batch contrastive loss for recall-focused retrieval.
 """
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -22,12 +23,14 @@ class MLP(nn.Module):
         layers = []
         prev_dim = input_dim
         for hidden_dim in hidden_dims:
-            layers.extend([
-                nn.Linear(prev_dim, hidden_dim),
-                nn.BatchNorm1d(hidden_dim),
-                nn.ReLU(),
-                nn.Dropout(dropout),
-            ])
+            layers.extend(
+                [
+                    nn.Linear(prev_dim, hidden_dim),
+                    nn.BatchNorm1d(hidden_dim),
+                    nn.ReLU(),
+                    nn.Dropout(dropout),
+                ]
+            )
             prev_dim = hidden_dim
         self.network = nn.Sequential(*layers)
 
@@ -49,16 +52,22 @@ class UserTower(nn.Module):
 
         # Embedding layers
         self.user_id_emb = nn.Embedding(
-            vocab_sizes["user_id"], config["features"]["user_id_embedding_dim"], padding_idx=0
+            vocab_sizes["user_id"],
+            config["features"]["user_id_embedding_dim"],
+            padding_idx=0,
         )
         self.gender_emb = nn.Embedding(
-            vocab_sizes["gender"], config["features"]["gender_embedding_dim"], padding_idx=0
+            vocab_sizes["gender"],
+            config["features"]["gender_embedding_dim"],
+            padding_idx=0,
         )
         self.age_emb = nn.Embedding(
             vocab_sizes["age"], config["features"]["age_embedding_dim"], padding_idx=0
         )
         self.occupation_emb = nn.Embedding(
-            vocab_sizes["occupation"], config["features"]["occupation_embedding_dim"], padding_idx=0
+            vocab_sizes["occupation"],
+            config["features"]["occupation_embedding_dim"],
+            padding_idx=0,
         )
 
         # Calculate total input dimension
@@ -70,8 +79,15 @@ class UserTower(nn.Module):
         )
 
         # MLP to project to shared embedding space
-        self.mlp = MLP(total_dim, config["candidate_gen"]["user_hidden_dims"], config["candidate_gen"]["dropout"])
-        self.projection = nn.Linear(config["candidate_gen"]["user_hidden_dims"][-1], config["candidate_gen"]["embedding_dim"])
+        self.mlp = MLP(
+            total_dim,
+            config["candidate_gen"]["user_hidden_dims"],
+            config["candidate_gen"]["dropout"],
+        )
+        self.projection = nn.Linear(
+            config["candidate_gen"]["user_hidden_dims"][-1],
+            config["candidate_gen"]["embedding_dim"],
+        )
 
     def forward(self, user_id, gender, age, occupation) -> torch.Tensor:
         """Compute user embedding.
@@ -85,12 +101,15 @@ class UserTower(nn.Module):
         Returns:
             L2-normalized user embedding of shape (batch_size, embedding_dim).
         """
-        x = torch.cat([
-            self.user_id_emb(user_id),
-            self.gender_emb(gender),
-            self.age_emb(age),
-            self.occupation_emb(occupation),
-        ], dim=-1)
+        x = torch.cat(
+            [
+                self.user_id_emb(user_id),
+                self.gender_emb(gender),
+                self.age_emb(age),
+                self.occupation_emb(occupation),
+            ],
+            dim=-1,
+        )
         x = self.mlp(x)
         x = self.projection(x)
         return F.normalize(x, p=2, dim=-1)
@@ -110,18 +129,30 @@ class ItemTower(nn.Module):
 
         # Embedding layers
         self.movie_id_emb = nn.Embedding(
-            vocab_sizes["movie_id"], config["features"]["movie_id_embedding_dim"], padding_idx=0
+            vocab_sizes["movie_id"],
+            config["features"]["movie_id_embedding_dim"],
+            padding_idx=0,
         )
         self.genre_proj = nn.Linear(
             vocab_sizes["genres"], config["features"]["genre_embedding_dim"]
         )
 
         # Calculate total input dimension
-        total_dim = config["features"]["movie_id_embedding_dim"] + config["features"]["genre_embedding_dim"]
+        total_dim = (
+            config["features"]["movie_id_embedding_dim"]
+            + config["features"]["genre_embedding_dim"]
+        )
 
         # MLP to project to shared embedding space
-        self.mlp = MLP(total_dim, config["candidate_gen"]["item_hidden_dims"], config["candidate_gen"]["dropout"])
-        self.projection = nn.Linear(config["candidate_gen"]["item_hidden_dims"][-1], config["candidate_gen"]["embedding_dim"])
+        self.mlp = MLP(
+            total_dim,
+            config["candidate_gen"]["item_hidden_dims"],
+            config["candidate_gen"]["dropout"],
+        )
+        self.projection = nn.Linear(
+            config["candidate_gen"]["item_hidden_dims"][-1],
+            config["candidate_gen"]["embedding_dim"],
+        )
 
     def forward(self, movie_id, genres) -> torch.Tensor:
         """Compute item embedding.
@@ -133,10 +164,13 @@ class ItemTower(nn.Module):
         Returns:
             L2-normalized item embedding of shape (batch_size, embedding_dim).
         """
-        x = torch.cat([
-            self.movie_id_emb(movie_id),
-            self.genre_proj(genres),
-        ], dim=-1)
+        x = torch.cat(
+            [
+                self.movie_id_emb(movie_id),
+                self.genre_proj(genres),
+            ],
+            dim=-1,
+        )
         x = self.mlp(x)
         x = self.projection(x)
         return F.normalize(x, p=2, dim=-1)

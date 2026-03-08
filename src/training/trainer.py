@@ -7,7 +7,7 @@ Features:
 - Checkpoint saving (best model by validation metric)
 - Console logging with progress bars
 """
-import os
+
 import time
 from pathlib import Path
 from typing import Callable, Dict, Optional
@@ -86,9 +86,7 @@ class Trainer:
         self.best_val_loss = float("inf")
         self.patience_counter = 0
 
-    def _train_one_epoch(
-        self, train_loader: DataLoader, epoch: int
-    ) -> float:
+    def _train_one_epoch(self, train_loader: DataLoader, epoch: int) -> float:
         """Run one training epoch.
 
         Args:
@@ -219,7 +217,9 @@ class Trainer:
         logger.info(f"Starting training: {self.stage}")
         logger.info(f"  Device: {self.device}")
         logger.info(f"  Epochs: {self.num_epochs}")
-        logger.info(f"  Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
+        logger.info(
+            f"  Model parameters: {sum(p.numel() for p in self.model.parameters()):,}"
+        )
         logger.info("=" * 60)
 
         history = {"train_loss": [], "val_loss": [], "metrics": []}

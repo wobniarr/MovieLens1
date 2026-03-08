@@ -11,10 +11,10 @@ Ranking Metrics (for ranking model):
 - AUC: Area Under the ROC Curve
 - Log Loss: Binary cross-entropy
 """
-from typing import Dict, List
+
+from typing import Dict
 
 import numpy as np
-import torch
 from sklearn.metrics import roc_auc_score, log_loss
 
 
@@ -26,9 +26,7 @@ class RetrievalMetrics:
     """
 
     @staticmethod
-    def hit_rate_at_k(
-        predictions: np.ndarray, targets: np.ndarray, k: int
-    ) -> float:
+    def hit_rate_at_k(predictions: np.ndarray, targets: np.ndarray, k: int) -> float:
         """Compute Hit Rate @K.
 
         Args:
@@ -47,9 +45,7 @@ class RetrievalMetrics:
         return hits / len(targets)
 
     @staticmethod
-    def ndcg_at_k(
-        predictions: np.ndarray, targets: np.ndarray, k: int
-    ) -> float:
+    def ndcg_at_k(predictions: np.ndarray, targets: np.ndarray, k: int) -> float:
         """Compute NDCG @K (single relevant item per user).
 
         Args:
@@ -65,7 +61,9 @@ class RetrievalMetrics:
         for i, target in enumerate(targets):
             if target in top_k_indices[i]:
                 rank = np.where(top_k_indices[i] == target)[0][0]
-                ndcg_scores.append(1.0 / np.log2(rank + 2))  # +2 because rank is 0-indexed
+                ndcg_scores.append(
+                    1.0 / np.log2(rank + 2)
+                )  # +2 because rank is 0-indexed
             else:
                 ndcg_scores.append(0.0)
         return np.mean(ndcg_scores)
