@@ -30,7 +30,7 @@ candidate_gen:
   user_hidden_dims: [128]
   item_hidden_dims: [128]
   dropout: 0.1
-  temperature: 0.05          # for contrastive loss scaling
+  temperature: 0.05          # for in-batch softmax contrastive loss scaling
   learning_rate: 0.001
   weight_decay: 0.0001
   batch_size: 1024

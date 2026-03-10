@@ -33,7 +33,7 @@ A modular, industry-standard recommender system built with PyTorch, following th
 | **Goal** | Recall (cast wide net) | Precision (perfect ordering) |
 | **Feedback** | Implicit (binary: interacted or not) | Hybrid (explicit rating + implicit signal) |
 | **Model** | Two-Tower (Dual Encoder) | Deep MLP with residual blocks |
-| **Loss** | Contrastive (in-batch negatives) | Binary Cross-Entropy |
+| **Loss** | In-batch softmax contrastive | Binary Cross-Entropy |
 | **Negative Sampling** | In-batch (~1023 per positive) | Pre-sampled 1:4 popularity-weighted |
 
 ## Project Structure
@@ -128,3 +128,5 @@ Candidate Generation uses a Two-Tower model with in-batch negatives. In-batch ne
 Ranking uses a deep MLP with residual connections and popularity-weighted pre-sampled negatives. Hard negatives (popular unseen movies) force the model to learn fine-grained user preferences, which suits the precision-focused goal of this stage.
 
 It is ensured that all feature vocabs (gender, age, occupation) are seen during training, but not all movie IDs are guaranteed to appear in the training set due to the temporal split. Movies only rated after the training cutoff have no learned embedding — this is the cold-start problem. However, this is partially mitigated by our hybrid approach, where content-based features (genres, user demographics) still provide a meaningful representation even when the movie ID embedding falls back to the padding index (0).
+
+When measuring the loss of our candidate generation model, we use in-batch softmax contrastive loss. This means that for each user in the batch, we treat the other users' items as negatives. This is computationally cheap and provides massive scale, which suits the recall-focused goal of this stage as we're okay with False Negatives. Our logits are the similarity matrix between users and items which is temperature-scaled. Cross-entropy is applied row-wise (each user classifies its correct item among all batch items) and column-wise via the transpose (each item classifies its correct user). We average both directions to learn a symmetric embedding space.

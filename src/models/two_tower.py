@@ -6,7 +6,7 @@ Architecture:
 - Item Tower: embeddings for movie_id + genre multi-hot -> MLP -> projection -> item embedding
 - Similarity: dot product between user and item embeddings
 
-Trained with in-batch contrastive loss for recall-focused retrieval.
+Trained with in-batch softmax contrastive loss for recall-focused retrieval.
 """
 
 import torch
@@ -180,7 +180,7 @@ class TwoTowerModel(nn.Module):
     """Two-Tower model for candidate generation.
 
     Computes user and item embeddings in separate towers, then measures
-    similarity via dot product. Trained with in-batch contrastive loss.
+    similarity via dot product. Trained with in-batch softmax contrastive loss.
     """
 
     def __init__(self, vocab_sizes: dict, config: dict):
