@@ -81,17 +81,16 @@ def train_candidate_gen(config_path: str = "configs/default.yaml"):
     train_dataset = CandidateGenDataset(train_df, encoder)
     val_dataset = CandidateGenDataset(val_df, encoder)
 
-    cg_config = config["candidate_gen"]
     train_loader = DataLoader(
         train_dataset,
-        batch_size=cg_config["batch_size"],
+        batch_size=config["candidate_gen"]["batch_size"],
         shuffle=True,
         num_workers=config["training"]["num_workers"],
         drop_last=True,  # Important for in-batch negatives
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=cg_config["batch_size"],
+        batch_size=config["candidate_gen"]["batch_size"],
         shuffle=False,
         num_workers=config["training"]["num_workers"],
         drop_last=True,

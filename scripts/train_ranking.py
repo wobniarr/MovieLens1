@@ -71,16 +71,15 @@ def train_ranking(config_path: str = "configs/default.yaml"):
     train_dataset = RankingDataset(train_df, encoder)
     val_dataset = RankingDataset(val_df, encoder)
 
-    rank_config = config["ranking"]
     train_loader = DataLoader(
         train_dataset,
-        batch_size=rank_config["batch_size"],
+        batch_size=config["ranking"]["batch_size"],
         shuffle=True,
         num_workers=config["training"]["num_workers"],
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=rank_config["batch_size"],
+        batch_size=config["ranking"]["batch_size"],
         shuffle=False,
         num_workers=config["training"]["num_workers"],
     )
