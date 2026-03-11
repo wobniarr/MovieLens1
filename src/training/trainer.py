@@ -76,7 +76,7 @@ class Trainer:
         self.num_epochs = config[stage]["num_epochs"]
         self.gradient_clip_norm = config["training"]["gradient_clip_norm"]
         self.early_stopping_patience = config[stage]["early_stopping_patience"]
-        self.log_every_n_steps = config["training"]["log_every_n_steps"]
+        self.log_every_n_steps = config["training"].get("log_every_n_steps")
 
         # Checkpointing
         self.checkpoint_dir = ensure_dir(
@@ -135,6 +135,14 @@ class Trainer:
 
             # Update progress bar
             progress.set_postfix({"loss": f"{loss.item():.4f}"})
+
+            # Periodic logging
+            if self.log_every_n_steps and (step + 1) % self.log_every_n_steps == 0:
+                avg_so_far = total_loss / num_batches
+                logger.info(
+                    f"  Step {step + 1}/{len(train_loader)} | "
+                    f"Running Avg Loss: {avg_so_far:.4f}"
+                )
 
         avg_loss = total_loss / max(num_batches, 1)
         return avg_loss
