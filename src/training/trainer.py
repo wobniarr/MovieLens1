@@ -111,6 +111,9 @@ class Trainer:
             # Move batch to device
             batch = {k: v.to(self.device) for k, v in batch.items()}
 
+            # Zero gradients
+            self.optimizer.zero_grad()
+
             # Forward pass
             if self.stage == "candidate_gen":
                 output = self.model(batch)
@@ -120,7 +123,6 @@ class Trainer:
                 loss = self.loss_fn(logits, batch["label"])
 
             # Backward pass
-            self.optimizer.zero_grad()
             loss.backward()
 
             # Gradient clipping
@@ -144,7 +146,7 @@ class Trainer:
                     f"Running Avg Loss: {avg_so_far:.4f}"
                 )
 
-        avg_loss = total_loss / max(num_batches, 1)
+        avg_loss = total_loss / num_batches
         return avg_loss
 
     @torch.no_grad()
@@ -174,7 +176,7 @@ class Trainer:
             total_loss += loss.item()
             num_batches += 1
 
-        return total_loss / max(num_batches, 1)
+        return total_loss / num_batches
 
     def _save_checkpoint(self, epoch: int, val_loss: float, is_best: bool) -> None:
         """Save model checkpoint.
@@ -192,8 +194,7 @@ class Trainer:
         }
 
         if is_best:
-            path = self.checkpoint_dir / "best_model.pt"
-            torch.save(checkpoint, path)
+            torch.save(checkpoint, self.checkpoint_dir / "best_model.pt")
             logger.info(f"  💾 Saved best model (val_loss={val_loss:.4f})")
 
     def load_best_model(self) -> None:
@@ -229,7 +230,13 @@ class Trainer:
         logger.info(f"  Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
         logger.info("=" * 60)
 
-        history = {"train_loss": [], "val_loss": [], "metrics": []}
+        history = {
+            "train_loss": [],
+            "val_loss": [],
+            "learning_rate": [],
+            "epoch_time": [],
+            "metrics": [],
+        }
 
         for epoch in range(self.num_epochs):
             start_time = time.time()
@@ -245,8 +252,10 @@ class Trainer:
             # Learning rate scheduling
             self.scheduler.step(val_loss)
             current_lr = self.optimizer.param_groups[0]["lr"]
-
             elapsed = time.time() - start_time
+
+            history["learning_rate"].append(current_lr)
+            history["epoch_time"].append(elapsed)
 
             # Evaluate with custom metrics
             metrics = {}
