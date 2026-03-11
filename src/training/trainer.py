@@ -14,7 +14,7 @@ from typing import Callable, Dict, Optional
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.optim import Adam
+from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
@@ -61,7 +61,7 @@ class Trainer:
         self.eval_fn = eval_fn
 
         # Optimizer
-        self.optimizer = Adam(
+        self.optimizer = AdamW(
             model.parameters(),
             lr=config[stage]["learning_rate"],
             weight_decay=config[stage]["weight_decay"],
