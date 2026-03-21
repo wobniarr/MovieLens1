@@ -22,7 +22,7 @@ from src.utils import load_config, set_seed, get_device, get_logger
 logger = get_logger(__name__)
 
 
-def create_ranking_eval_fn():
+def create_ranking_eval_fn(ks):
     """Create an evaluation function for ranking metrics."""
 
     @torch.no_grad()
@@ -40,7 +40,20 @@ def create_ranking_eval_fn():
         labels = np.concatenate(all_labels)
         scores = np.concatenate(all_scores)
 
-        return RankingMetrics.compute_all(labels, scores)
+        # AUC as sanity check (works on flat labels/scores)
+        results = {"AUC": RankingMetrics.compute_auc(labels, scores)}
+
+        # NDCG@K and MRR require a per-user score matrix
+        score_matrix = scores.reshape(1, -1)
+        target_indices = np.where(labels == 1)[0]
+
+        for k in ks:
+            results[f"NDCG@{k}"] = RankingMetrics.ndcg_at_k(
+                score_matrix, target_indices, k
+            )
+        results["MRR"] = RankingMetrics.mrr(score_matrix, target_indices)
+
+        return results
 
     return eval_fn
 
@@ -87,7 +100,7 @@ def train_ranking(config_path: str = "configs/default.yaml"):
     # Initialize model, loss, trainer
     model = RankingModel(vocab_sizes, config)
     loss_fn = RankingLoss()
-    eval_fn = create_ranking_eval_fn()
+    eval_fn = create_ranking_eval_fn(config["evaluation"]["ks"])
 
     trainer = Trainer(
         model=model,

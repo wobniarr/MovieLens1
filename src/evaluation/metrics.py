@@ -1,33 +1,36 @@
 """
-Evaluation metrics for retrieval (candidate generation) and ranking.
-
 Retrieval Metrics (for candidate generation):
-- Hit Rate @K: Did the true item appear in top-K?
-- NDCG @K: Normalized Discounted Cumulative Gain
-- MRR: Mean Reciprocal Rank
 - Recall @K: Fraction of relevant items retrieved
 
 Ranking Metrics (for ranking model):
-- AUC: Area Under the ROC Curve
-- Log Loss: Binary cross-entropy
+- NDCG @K: Normalized Discounted Cumulative Gain
+- MRR: Mean Reciprocal Rank
+- AUC: Area Under the ROC Curve (sanity check)
 """
 
 from typing import Dict
 
 import numpy as np
-from sklearn.metrics import roc_auc_score, log_loss
+from sklearn.metrics import roc_auc_score
 
 
 class RetrievalMetrics:
     """Metrics for evaluating candidate generation (retrieval) quality.
 
-    Computes metrics based on how well the model retrieves relevant items
-    from the full item catalog.
+    Focuses on recall — did the model retrieve the relevant items?
+    Ranking quality within the candidate set doesn't matter because
+    the ranking model re-orders them downstream.
     """
 
     @staticmethod
-    def hit_rate_at_k(predictions: np.ndarray, targets: np.ndarray, k: int) -> float:
-        """Compute Hit Rate @K.
+    def recall_at_k(
+        predictions: np.ndarray,
+        targets: np.ndarray,
+        k: int,
+    ) -> float:
+        """Compute Recall @K.
+
+        For single relevant item per query, this equals hit rate @K.
 
         Args:
             predictions: Array of shape (num_users, num_items) with scores.
@@ -35,7 +38,7 @@ class RetrievalMetrics:
             k: Number of top items to consider.
 
         Returns:
-            Hit rate (fraction of users where true item is in top-K).
+            Average recall@K across all users.
         """
         top_k_indices = np.argsort(-predictions, axis=1)[:, :k]
         hits = 0
@@ -43,6 +46,14 @@ class RetrievalMetrics:
             if target in top_k_indices[i]:
                 hits += 1
         return hits / len(targets)
+
+
+class RankingMetrics:
+    """Metrics for evaluating the ranking model quality.
+
+    Primary metrics: NDCG@K and MRR measure top-of-list quality.
+    Secondary metric: AUC as a sanity check for discriminative ability.
+    """
 
     @staticmethod
     def ndcg_at_k(predictions: np.ndarray, targets: np.ndarray, k: int) -> float:
@@ -90,33 +101,11 @@ class RetrievalMetrics:
         return np.mean(rr_scores)
 
     @staticmethod
-    def recall_at_k(
-        predictions: np.ndarray,
-        targets: np.ndarray,
-        k: int,
-    ) -> float:
-        """Compute Recall @K.
-
-        For single relevant item per query, recall@k equals hit_rate@k.
-        Provided separately for clarity in multi-relevant-item scenarios.
-
-        Args:
-            predictions: Array of shape (num_users, num_items) with scores.
-            targets: Array of shape (num_users,) with true item indices.
-            k: Number of top items to consider.
-
-        Returns:
-            Average recall@K across all users.
-        """
-        return RetrievalMetrics.hit_rate_at_k(predictions, targets, k)
-
-
-class RankingMetrics:
-    """Metrics for evaluating the ranking model quality."""
-
-    @staticmethod
     def compute_auc(labels: np.ndarray, scores: np.ndarray) -> float:
         """Compute Area Under the ROC Curve.
+
+        Used as a sanity check — confirms the model can distinguish
+        positives from negatives. Not a primary ranking metric.
 
         Args:
             labels: Binary ground truth labels.
@@ -129,36 +118,3 @@ class RankingMetrics:
             return 0.5
         return roc_auc_score(labels, scores)
 
-    @staticmethod
-    def compute_logloss(labels: np.ndarray, scores: np.ndarray) -> float:
-        """Compute binary cross-entropy (log loss).
-
-        Args:
-            labels: Binary ground truth labels.
-            scores: Predicted probabilities (after sigmoid).
-
-        Returns:
-            Log loss value.
-        """
-        # Clip to avoid log(0)
-        scores = np.clip(scores, 1e-7, 1 - 1e-7)
-        return log_loss(labels, scores)
-
-    @staticmethod
-    def compute_all(labels: np.ndarray, scores: np.ndarray) -> Dict[str, float]:
-        """Compute all ranking metrics.
-
-        Args:
-            labels: Binary ground truth labels.
-            scores: Predicted scores (raw logits or probabilities).
-
-        Returns:
-            Dictionary with AUC and LogLoss values.
-        """
-        # Convert logits to probabilities for log_loss
-        probs = 1 / (1 + np.exp(-np.clip(scores, -10, 10)))  # sigmoid
-
-        return {
-            "AUC": RankingMetrics.compute_auc(labels, scores),
-            "LogLoss": RankingMetrics.compute_logloss(labels, probs),
-        }

@@ -46,8 +46,7 @@ def create_retrieval_eval_fn(ks):
 
         metrics = {}
         for k in ks:
-            metrics[f"HR@{k}"] = RetrievalMetrics.hit_rate_at_k(scores, targets, k)
-            metrics[f"NDCG@{k}"] = RetrievalMetrics.ndcg_at_k(scores, targets, k)
+            metrics[f"Recall@{k}"] = RetrievalMetrics.recall_at_k(scores, targets, k)
 
         return metrics
 

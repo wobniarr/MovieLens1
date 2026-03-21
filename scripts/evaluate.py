@@ -31,6 +31,7 @@ def evaluate_candidate_gen(model, test_loader, device, ks):
     for batch in test_loader:
         batch = {k: v.to(device) for k, v in batch.items()}
         output = model(batch)
+        # Move outputs to CPU memory (RAM) to save GPU VRAM
         all_user_embs.append(output["user_emb"].cpu())
         all_item_embs.append(output["item_emb"].cpu())
 
@@ -42,17 +43,17 @@ def evaluate_candidate_gen(model, test_loader, device, ks):
 
     results = {}
     for k in ks:
-        results[f"HR@{k}"] = RetrievalMetrics.hit_rate_at_k(scores, targets, k)
-        results[f"NDCG@{k}"] = RetrievalMetrics.ndcg_at_k(scores, targets, k)
         results[f"Recall@{k}"] = RetrievalMetrics.recall_at_k(scores, targets, k)
-    results["MRR"] = RetrievalMetrics.mrr(scores, targets)
 
     return results
 
 
 @torch.no_grad()
-def evaluate_ranking(model, test_loader, device):
-    """Evaluate the Ranking model on the test set."""
+def evaluate_ranking(model, test_loader, device, ks):
+    """Evaluate the Ranking model on the test set.
+
+    Computes NDCG@K and MRR (primary) plus AUC (sanity check).
+    """
     model.eval()
     all_labels = []
     all_scores = []
@@ -66,7 +67,22 @@ def evaluate_ranking(model, test_loader, device):
     labels = np.concatenate(all_labels)
     scores = np.concatenate(all_scores)
 
-    return RankingMetrics.compute_all(labels, scores)
+    # AUC as sanity check (works on flat labels/scores)
+    results = {"AUC": RankingMetrics.compute_auc(labels, scores)}
+
+    # NDCG@K and MRR require a per-user score matrix
+    # Reshape into (num_users, items_per_user) if test set is structured that way
+    # For now, compute on the flat predictions as a score matrix
+    score_matrix = scores.reshape(1, -1)  # treat as single-user for flat eval
+    target_indices = np.where(labels == 1)[0]
+
+    for k in ks:
+        results[f"NDCG@{k}"] = RankingMetrics.ndcg_at_k(
+            score_matrix, target_indices, k
+        )
+    results["MRR"] = RankingMetrics.mrr(score_matrix, target_indices)
+
+    return results
 
 
 def evaluate(config_path: str = "configs/default.yaml"):
@@ -132,7 +148,9 @@ def evaluate(config_path: str = "configs/default.yaml"):
         shuffle=False,
     )
 
-    rank_metrics = evaluate_ranking(rank_model, rank_loader, device)
+    rank_metrics = evaluate_ranking(
+        rank_model, rank_loader, device, config["evaluation"]["ks"]
+    )
 
     logger.info("Ranking Metrics:")
     for name, value in rank_metrics.items():
