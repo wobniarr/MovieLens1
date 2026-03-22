@@ -1,6 +1,6 @@
 # MovieLens Recommender System
 
-A modular, industry-standard recommender system built with PyTorch, following the classic **two-stage architecture** (Candidate Generation → Ranking) used at companies like Google, YouTube, and Netflix.
+A modular, industry-standard recommender system built with PyTorch, following the classic **two-stage architecture** (Candidate Generation → Ranking)
 
 ## Architecture
 

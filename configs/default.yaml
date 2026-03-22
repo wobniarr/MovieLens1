@@ -57,5 +57,5 @@ training:
   seed: 42
 
 evaluation:
-  ks: [5, 10, 20]            # K values for Hit Rate@K, NDCG@K, Recall@K
+  ks: [5, 10, 20]            # K values for NDCG@K and Recall@K
   num_eval_users: 1000       # subsample users for faster eval (not used currently)
