@@ -27,20 +27,22 @@ class RetrievalMetrics:
     def chunked_recall_at_k(
         user_embs: torch.Tensor,
         item_embs: torch.Tensor,
+        ground_truth: Dict[int, set],
         ks: List[int],
         chunk_size: int = 1024,
     ) -> Dict[str, float]:
         """Compute Recall@K using chunked similarity to bound peak memory.
 
-        Instead of materializing the full N*N score matrix, processes users
-        in chunks of `chunk_size`, keeping memory at O(chunk_size * N).
+        Processes users in chunks of `chunk_size`, keeping peak memory at
+        O(chunk_size * num_items) instead of O(num_users * num_items).
 
-        Each user's true positive is the item at the same index (i.e., the
-        diagonal of the similarity matrix).
+        Recall@K per user = |retrieved_top_k ∩ relevant| / |relevant|,
+        averaged over all users with at least one relevant item.
 
         Args:
-            user_embs: Tensor of shape (N, D) with user embeddings.
-            item_embs: Tensor of shape (N, D) with item embeddings.
+            user_embs: Tensor of shape (num_users, D) with unique user embeddings.
+            item_embs: Tensor of shape (num_items, D) with unique item embeddings.
+            ground_truth: Maps user index -> set of positive item indices.
             ks: List of K values for Recall@K.
             chunk_size: Number of users to process per chunk.
 
@@ -49,22 +51,28 @@ class RetrievalMetrics:
         """
         max_k = max(ks)
         n_users = user_embs.shape[0]
-        hits = {k: 0 for k in ks}
+        recall_sums = {k: 0.0 for k in ks}
 
         for start in range(0, n_users, chunk_size):
             end = min(start + chunk_size, n_users)
-            # (chunk, D) @ (D, N) -> (chunk, N)
+            # (chunk, D) @ (D, num_items) -> (chunk, num_items)
             chunk_scores = torch.mm(user_embs[start:end], item_embs.T)
             _, top_indices = torch.topk(chunk_scores, max_k, dim=1)
             top_indices = top_indices.numpy()
 
-            # Targets for this chunk are indices [start, start+1, ..., end-1]
-            for i, target in enumerate(range(start, end)):
+            for i, user_idx in enumerate(range(start, end)):
+                true_items = ground_truth.get(user_idx, set())
+                if not true_items:
+                    continue
                 for k in ks:
-                    if target in top_indices[i, :k]:
-                        hits[k] += 1
+                    found = len(true_items & set(top_indices[i, :k]))
+                    recall_sums[k] += found / len(true_items)
 
-        return {f"Recall@{k}": hits[k] / n_users for k in ks}
+        n_eval_users = sum(1 for v in ground_truth.values() if v)
+        if n_eval_users == 0:
+            return {f"Recall@{k}": 0.0 for k in ks}
+
+        return {f"Recall@{k}": recall_sums[k] / n_eval_users for k in ks}
 
 
 class RankingMetrics:

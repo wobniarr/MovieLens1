@@ -30,13 +30,14 @@ candidate_gen:
   user_hidden_dims: [128]
   item_hidden_dims: [128]
   dropout: 0.1
-  temperature: 0.05          # for in-batch softmax contrastive loss scaling
+  temperature: 0.2          # for in-batch softmax contrastive loss scaling
   learning_rate: 0.001
   weight_decay: 0.0001
   batch_size: 1024
   num_epochs: 20
   top_k: 100
-  early_stopping_patience: 5
+  early_stopping_patience: 8
+  checkpoint_metric: "Recall@20"  # metric to checkpoint/early-stop on (null = val_loss)
 
 ranking:
   hidden_dims: [256, 128, 64]
@@ -47,12 +48,13 @@ ranking:
   batch_size: 512
   num_epochs: 15
   early_stopping_patience: 5
+  checkpoint_metric: null         # null = use val_loss
 
 training:
   device: "cuda"
   gradient_clip_norm: 1.0
   use_mixed_precision: false  # set true if GPU supports it
-  num_workers: 0              # DataLoader workers (0 = main process)
+  num_workers: 2              # DataLoader workers (0 = main process)
   # log_every_n_steps: 100   # uncomment to enable mid-epoch logging
   seed: 42
 

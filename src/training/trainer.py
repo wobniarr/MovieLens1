@@ -78,11 +78,15 @@ class Trainer:
         self.early_stopping_patience = config[stage]["early_stopping_patience"]
         self.log_every_n_steps = config["training"].get("log_every_n_steps")
 
-        # Checkpointing
+        # Checkpointing — use eval metric if configured, otherwise val_loss
+        self.checkpoint_metric = config[stage].get("checkpoint_metric")
         self.checkpoint_dir = ensure_dir(
             Path(config["paths"]["checkpoints_dir"]) / stage
         )
-        self.best_val_loss = float("inf")
+        if self.checkpoint_metric:
+            self.best_metric_value = float("-inf")  # higher is better
+        else:
+            self.best_metric_value = float("inf")   # lower is better (val_loss)
         self.patience_counter = 0
 
     def _train_one_epoch(
@@ -104,7 +108,7 @@ class Trainer:
         progress = tqdm(
             train_loader,
             desc=f"Epoch {epoch + 1}/{self.num_epochs} [Train]",
-            leave=False,
+            leave=True,
         )
 
         for step, batch in enumerate(progress):
@@ -195,7 +199,13 @@ class Trainer:
 
         if is_best:
             torch.save(checkpoint, self.checkpoint_dir / "best_model.pt")
-            logger.info(f"  💾 Saved best model (val_loss={val_loss:.4f})")
+            if self.checkpoint_metric:
+                logger.info(
+                    f"  💾 Saved best model ({self.checkpoint_metric}="
+                    f"{self.best_metric_value:.4f})"
+                )
+            else:
+                logger.info(f"  💾 Saved best model (val_loss={val_loss:.4f})")
 
     def load_best_model(self) -> None:
         """Load the best model checkpoint."""
@@ -279,9 +289,28 @@ class Trainer:
                 logger.info(f"  Metrics: {metrics_str}")
 
             # Checkpointing & early stopping
-            is_best = val_loss < self.best_val_loss
+            if self.checkpoint_metric and metrics:
+                # Use eval metric (higher is better)
+                current_value = metrics.get(self.checkpoint_metric)
+                if current_value is None:
+                    logger.warning(
+                        f"Checkpoint metric '{self.checkpoint_metric}' not found "
+                        f"in eval metrics. Falling back to val_loss."
+                    )
+                    is_best = val_loss < self.best_metric_value
+                    if is_best:
+                        self.best_metric_value = val_loss
+                else:
+                    is_best = current_value > self.best_metric_value
+                    if is_best:
+                        self.best_metric_value = current_value
+            else:
+                # Fall back to val_loss (lower is better)
+                is_best = val_loss < self.best_metric_value
+                if is_best:
+                    self.best_metric_value = val_loss
+
             if is_best:
-                self.best_val_loss = val_loss
                 self.patience_counter = 0
             else:
                 self.patience_counter += 1

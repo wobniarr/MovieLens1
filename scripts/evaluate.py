@@ -23,22 +23,48 @@ logger = get_logger(__name__)
 
 @torch.no_grad()
 def evaluate_candidate_gen(model, test_loader, device, ks, chunk_size=1024):
-    """Evaluate the Two-Tower model on the test set."""
+    """Evaluate the Two-Tower model on the test set.
+
+    Deduplicates user and item embeddings so the similarity matrix is
+    (num_unique_users x num_unique_items) instead of (N_interactions x N_interactions).
+    """
     model.eval()
+    all_user_ids = []
+    all_movie_ids = []
     all_user_embs = []
     all_item_embs = []
 
     for batch in test_loader:
         batch = {k: v.to(device) for k, v in batch.items()}
         output = model(batch)
+        all_user_ids.append(batch["user_id"].cpu())
+        all_movie_ids.append(batch["movie_id"].cpu())
         # Move outputs to CPU memory (RAM) to save GPU VRAM
         all_user_embs.append(output["user_emb"].cpu())
         all_item_embs.append(output["item_emb"].cpu())
 
+    user_ids = torch.cat(all_user_ids, dim=0).numpy()
+    movie_ids = torch.cat(all_movie_ids, dim=0).numpy()
     user_embs = torch.cat(all_user_embs, dim=0)
     item_embs = torch.cat(all_item_embs, dim=0)
 
-    return RetrievalMetrics.chunked_recall_at_k(user_embs, item_embs, ks, chunk_size)
+    # Deduplicate: keep first occurrence of each unique user/item
+    unique_user_ids, user_first_idx = np.unique(user_ids, return_index=True)
+    unique_movie_ids, item_first_idx = np.unique(movie_ids, return_index=True)
+    unique_user_embs = user_embs[user_first_idx]
+    unique_item_embs = item_embs[item_first_idx]
+
+    # Build ground truth: user_idx -> set of positive item_indices
+    movie_id_to_idx = {mid: idx for idx, mid in enumerate(unique_movie_ids)}
+    ground_truth = {}
+    for uid, mid in zip(user_ids, movie_ids):
+        u_idx = np.searchsorted(unique_user_ids, uid)
+        m_idx = movie_id_to_idx[mid]
+        ground_truth.setdefault(u_idx, set()).add(m_idx)
+
+    return RetrievalMetrics.chunked_recall_at_k(
+        unique_user_embs, unique_item_embs, ground_truth, ks, chunk_size
+    )
 
 
 @torch.no_grad()
