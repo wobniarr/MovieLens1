@@ -39,14 +39,15 @@ class MLP(nn.Module):
 
 
 class UserTower(nn.Module):
-    """User tower: embeds user features and projects to shared embedding space."""
+    """User tower: embeds user features + watch history and projects to shared embedding space."""
 
-    def __init__(self, vocab_sizes: dict, config: dict):
+    def __init__(self, vocab_sizes: dict, config: dict, shared_movie_emb: nn.Embedding):
         """Initialize the user tower.
 
         Args:
             vocab_sizes: Dictionary of vocabulary sizes from FeatureEncoder.
             config: Full configuration dictionary.
+            shared_movie_emb: Shared movie_id embedding table (same as item tower).
         """
         super().__init__()
 
@@ -70,12 +71,17 @@ class UserTower(nn.Module):
             padding_idx=0,
         )
 
-        # Calculate total input dimension
+        # Shared movie embedding for watch history
+        self.history_emb = shared_movie_emb
+        history_emb_dim = config["features"]["movie_id_embedding_dim"]
+
+        # Calculate total input dimension (user features + history)
         total_dim = (
             config["features"]["user_id_embedding_dim"]
             + config["features"]["gender_embedding_dim"]
             + config["features"]["age_embedding_dim"]
             + config["features"]["occupation_embedding_dim"]
+            + history_emb_dim  # mean-pooled history vector
         )
 
         # MLP to project to shared embedding space
@@ -89,7 +95,7 @@ class UserTower(nn.Module):
             config["candidate_gen"]["embedding_dim"],
         )
 
-    def forward(self, user_id, gender, age, occupation) -> torch.Tensor:
+    def forward(self, user_id, gender, age, occupation, watch_history) -> torch.Tensor:
         """Compute user embedding.
 
         Args:
@@ -97,22 +103,33 @@ class UserTower(nn.Module):
             gender: Gender tensor of shape (batch_size,).
             age: Age tensor of shape (batch_size,).
             occupation: Occupation tensor of shape (batch_size,).
+            watch_history: Encoded movie IDs of shape (batch_size, max_history_len).
+                           Padded with 0s for users with short/no history.
 
         Returns:
             L2-normalized user embedding of shape (batch_size, embedding_dim).
         """
+        # Embed watch history and mean-pool (masking padding)
+        hist_emb = self.history_emb(watch_history)  # (B, L, D)
+        hist_mask = (watch_history != 0).unsqueeze(-1).float()  # (B, L, 1)
+        hist_sum = (hist_emb * hist_mask).sum(dim=1)  # (B, D)
+        hist_count = hist_mask.sum(dim=1).clamp(min=1)  # (B, 1) avoid div-by-zero
+        hist_pooled = hist_sum / hist_count  # (B, D)
+
         x = torch.cat(
             [
                 self.user_id_emb(user_id),
                 self.gender_emb(gender),
                 self.age_emb(age),
                 self.occupation_emb(occupation),
+                hist_pooled,
             ],
             dim=-1,
         )
         x = self.mlp(x)
         x = self.projection(x)
         return F.normalize(x, p=2, dim=-1)
+
 
 
 class ItemTower(nn.Module):
@@ -181,6 +198,9 @@ class TwoTowerModel(nn.Module):
 
     Computes user and item embeddings in separate towers, then measures
     similarity via dot product. Trained with in-batch softmax contrastive loss.
+
+    The movie_id embedding table is shared between the item tower (for the
+    target movie) and the user tower (for watch history mean-pooling).
     """
 
     def __init__(self, vocab_sizes: dict, config: dict):
@@ -191,8 +211,19 @@ class TwoTowerModel(nn.Module):
             config: Full configuration dictionary.
         """
         super().__init__()
-        self.user_tower = UserTower(vocab_sizes, config)
+
+        # Shared movie embedding: used by item tower and user tower history encoder
+        self.shared_movie_emb = nn.Embedding(
+            vocab_sizes["movie_id"],
+            config["features"]["movie_id_embedding_dim"],
+            padding_idx=0,
+        )
+
+        self.user_tower = UserTower(vocab_sizes, config, self.shared_movie_emb)
         self.item_tower = ItemTower(vocab_sizes, config)
+        # Point item tower's movie_id_emb to the shared table
+        self.item_tower.movie_id_emb = self.shared_movie_emb
+
         self.temperature = config["candidate_gen"]["temperature"]
 
     def forward(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
@@ -209,6 +240,7 @@ class TwoTowerModel(nn.Module):
             batch["gender"],
             batch["age"],
             batch["occupation"],
+            batch["watch_history"],
         )
         item_emb = self.item_tower(
             batch["movie_id"],
@@ -232,6 +264,7 @@ class TwoTowerModel(nn.Module):
             batch["gender"],
             batch["age"],
             batch["occupation"],
+            batch["watch_history"],
         )
 
     def get_item_embedding(self, batch: Dict[str, torch.Tensor]) -> torch.Tensor:

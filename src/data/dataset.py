@@ -48,6 +48,18 @@ class CandidateGenDataset(Dataset):
         )
         self._genres = np.stack([encoder.encode_genres(g) for g in self.df["genres"]])
 
+        # Pre-encode watch histories (list of raw movie_ids -> encoded indices)
+        if "watch_history" in self.df.columns:
+            self._watch_histories = np.array(
+                [
+                    [encoder.encode_movie_id(mid) for mid in hist]
+                    for hist in self.df["watch_history"]
+                ]
+            )
+        else:
+            # Fallback: no history available (e.g. legacy data)
+            self._watch_histories = np.zeros((len(self.df), 1), dtype=np.int64)
+
     def __len__(self) -> int:
         return len(self.df)
 
@@ -62,6 +74,7 @@ class CandidateGenDataset(Dataset):
               - occupation: (1,) occupation index
               - movie_id: (1,) movie index
               - genres: (num_genres,) multi-hot genre vector
+              - watch_history: (max_history_len,) encoded movie indices
         """
         return {
             "user_id": torch.tensor(self._user_ids[idx], dtype=torch.long),
@@ -70,6 +83,7 @@ class CandidateGenDataset(Dataset):
             "occupation": torch.tensor(self._occupations[idx], dtype=torch.long),
             "movie_id": torch.tensor(self._movie_ids[idx], dtype=torch.long),
             "genres": torch.tensor(self._genres[idx], dtype=torch.float),
+            "watch_history": torch.tensor(self._watch_histories[idx], dtype=torch.long),
         }
 
 

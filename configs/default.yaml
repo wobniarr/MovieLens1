@@ -26,17 +26,18 @@ features:
 
 # --- Candidate Generation (Two-Tower) ---
 candidate_gen:
-  embedding_dim: 64
-  user_hidden_dims: [128]
-  item_hidden_dims: [128]
-  dropout: 0.1
-  temperature: 0.2          # for in-batch softmax contrastive loss scaling
+  embedding_dim: 128
+  user_hidden_dims: [256, 128]
+  item_hidden_dims: [256, 128]
+  dropout: 0.2
+  temperature: 0.07               # for in-batch softmax contrastive loss scaling
   learning_rate: 0.001
   weight_decay: 0.0001
   batch_size: 1024
   num_epochs: 20
   top_k: 100
   early_stopping_patience: 8
+  max_history_len: 50             # cap user watch history at N most recent items
   checkpoint_metric: "Recall@20"  # metric to checkpoint/early-stop on (null = val_loss)
 
 ranking:

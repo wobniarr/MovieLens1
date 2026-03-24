@@ -109,6 +109,77 @@ def _temporal_split(
     return train_df, val_df, test_df
 
 
+def _build_watch_histories(
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    max_history_len: int,
+) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Build per-interaction watch history for each split.
+
+    For training rows: history = user's prior movie_ids within train (by timestamp).
+    For val/test rows: history = all of user's train interactions (no leakage).
+
+    Args:
+        train_df: Training DataFrame, sorted by timestamp.
+        val_df: Validation DataFrame.
+        test_df: Test DataFrame.
+        max_history_len: Maximum number of history items to keep.
+
+    Returns:
+        Tuple of (train_df, val_df, test_df) with 'watch_history' column added.
+    """
+    # --- Training histories: sliding window per user within train ---
+    train_df = train_df.sort_values("timestamp").reset_index(drop=True)
+    train_histories = []
+    user_history = {}  # user_id -> list of movie_ids seen so far
+
+    for _, row in train_df.iterrows():
+        uid = row["user_id"]
+        mid = row["movie_id"]
+
+        # Get current history for this user (before this interaction)
+        hist = user_history.get(uid, [])
+        # Cap to last N items, pad to fixed length
+        hist_trimmed = hist[-max_history_len:]
+        padded = [0] * (max_history_len - len(hist_trimmed)) + hist_trimmed
+        train_histories.append(padded)
+
+        # Update running history
+        user_history.setdefault(uid, []).append(mid)
+
+    train_df = train_df.copy()
+    train_df["watch_history"] = train_histories
+
+    # --- Val/Test histories: all train interactions per user ---
+    # user_history now contains each user's full training history
+    def _build_eval_history(df):
+        histories = []
+        for _, row in df.iterrows():
+            uid = row["user_id"]
+            hist = user_history.get(uid, [])
+            hist_trimmed = hist[-max_history_len:]
+            padded = [0] * (max_history_len - len(hist_trimmed)) + hist_trimmed
+            histories.append(padded)
+        result = df.copy()
+        result["watch_history"] = histories
+        return result
+
+    val_df = _build_eval_history(val_df)
+    test_df = _build_eval_history(test_df)
+
+    # Log stats
+    train_lens = [len([x for x in h if x != 0]) for h in train_histories]
+    logger.info(
+        f"Watch histories built (max_len={max_history_len}): "
+        f"avg={np.mean(train_lens):.1f}, "
+        f"median={np.median(train_lens):.0f}, "
+        f"users_with_history={sum(1 for l in train_lens if l > 0):,}"
+    )
+
+    return train_df, val_df, test_df
+
+
 def _generate_negative_samples(
     df: pd.DataFrame,
     all_movie_ids: np.ndarray,
@@ -223,6 +294,13 @@ def preprocess_data(config: dict) -> dict:
         df,
         config["data"]["train_ratio"],
         config["data"]["val_ratio"],
+    )
+
+    # Step 4.5: Build user watch histories
+    logger.info("Step 4.5: Building user watch histories...")
+    max_history_len = config["candidate_gen"].get("max_history_len", 50)
+    train_df, val_df, test_df = _build_watch_histories(
+        train_df, val_df, test_df, max_history_len
     )
 
     # Step 5: Generate negative samples for ranking (train only)
