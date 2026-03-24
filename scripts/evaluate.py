@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 @torch.no_grad()
-def evaluate_candidate_gen(model, test_loader, device, ks):
+def evaluate_candidate_gen(model, test_loader, device, ks, chunk_size=1024):
     """Evaluate the Two-Tower model on the test set."""
     model.eval()
     all_user_embs = []
@@ -35,17 +35,10 @@ def evaluate_candidate_gen(model, test_loader, device, ks):
         all_user_embs.append(output["user_emb"].cpu())
         all_item_embs.append(output["item_emb"].cpu())
 
-    user_embs = torch.cat(all_user_embs, dim=0).numpy()
-    item_embs = torch.cat(all_item_embs, dim=0).numpy()
+    user_embs = torch.cat(all_user_embs, dim=0)
+    item_embs = torch.cat(all_item_embs, dim=0)
 
-    scores = user_embs @ item_embs.T
-    targets = list(range(len(scores)))
-
-    results = {}
-    for k in ks:
-        results[f"Recall@{k}"] = RetrievalMetrics.recall_at_k(scores, targets, k)
-
-    return results
+    return RetrievalMetrics.chunked_recall_at_k(user_embs, item_embs, ks, chunk_size)
 
 
 @torch.no_grad()
@@ -123,7 +116,9 @@ def evaluate(config_path: str = "configs/default.yaml"):
     )
 
     cg_metrics = evaluate_candidate_gen(
-        cg_model, cg_loader, device, config["evaluation"]["ks"]
+        cg_model, cg_loader, device,
+        config["evaluation"]["ks"],
+        chunk_size=config["evaluation"]["eval_chunk_size"],
     )
 
     logger.info("Candidate Generation Metrics:")

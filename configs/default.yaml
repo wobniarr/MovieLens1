@@ -58,4 +58,5 @@ training:
 
 evaluation:
   ks: [5, 10, 20]            # K values for NDCG@K and Recall@K
+  eval_chunk_size: 1024       # users per chunk for chunked Recall@K (controls peak RAM)
   num_eval_users: 1000       # subsample users for faster eval (not used currently)

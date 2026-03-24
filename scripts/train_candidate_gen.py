@@ -21,8 +21,13 @@ from src.utils import load_config, set_seed, get_device, get_logger
 logger = get_logger(__name__)
 
 
-def create_retrieval_eval_fn(ks):
-    """Create an evaluation function for retrieval metrics."""
+def create_retrieval_eval_fn(ks, chunk_size=1024):
+    """Create an evaluation function for retrieval metrics.
+
+    Args:
+        ks: List of K values for Recall@K.
+        chunk_size: Number of users to score per chunk (controls peak RAM).
+    """
 
     @torch.no_grad()
     def eval_fn(model, val_loader, device):
@@ -36,19 +41,12 @@ def create_retrieval_eval_fn(ks):
             all_user_embs.append(output["user_emb"].cpu())
             all_item_embs.append(output["item_emb"].cpu())
 
-        user_embs = torch.cat(all_user_embs, dim=0).numpy()
-        item_embs = torch.cat(all_item_embs, dim=0).numpy()
+        user_embs = torch.cat(all_user_embs, dim=0)
+        item_embs = torch.cat(all_item_embs, dim=0)
 
-        # Each user's true positive is the item at the same index
-        # Compute similarity matrix
-        scores = user_embs @ item_embs.T
-        targets = list(range(len(scores)))
-
-        metrics = {}
-        for k in ks:
-            metrics[f"Recall@{k}"] = RetrievalMetrics.recall_at_k(scores, targets, k)
-
-        return metrics
+        return RetrievalMetrics.chunked_recall_at_k(
+            user_embs, item_embs, ks, chunk_size
+        )
 
     return eval_fn
 
@@ -98,7 +96,10 @@ def train_candidate_gen(config_path: str = "configs/default.yaml"):
     # Initialize model, loss, trainer
     model = TwoTowerModel(vocab_sizes, config)
     loss_fn = ContrastiveLoss()
-    eval_fn = create_retrieval_eval_fn(config["evaluation"]["ks"])
+    eval_fn = create_retrieval_eval_fn(
+        config["evaluation"]["ks"],
+        chunk_size=config["evaluation"]["eval_chunk_size"],
+    )
 
     trainer = Trainer(
         model=model,
