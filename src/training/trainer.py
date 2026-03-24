@@ -230,6 +230,8 @@ class Trainer:
         logger.info(f"  Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
         logger.info("=" * 60)
 
+        total_start_time = time.time()
+
         history = {
             "train_loss": [],
             "val_loss": [],
@@ -295,6 +297,13 @@ class Trainer:
 
         # Load best model at end
         self.load_best_model()
-        logger.info("Training complete! Best model loaded.")
+
+        total_time = time.time() - total_start_time
+        history["total_time"] = total_time
+        minutes, seconds = divmod(total_time, 60)
+        logger.info(
+            f"Training complete! Best model loaded. "
+            f"Total time: {int(minutes)}m {seconds:.1f}s"
+        )
 
         return history
