@@ -22,11 +22,12 @@ logger = get_logger(__name__)
 
 
 @torch.no_grad()
-def evaluate_candidate_gen(model, test_loader, device, ks, chunk_size=1024):
+def evaluate_candidate_gen(model, test_loader, device, ks, train_df, chunk_size=1024):
     """Evaluate the Two-Tower model on the test set.
 
     Deduplicates user and item embeddings so the similarity matrix is
     (num_unique_users x num_unique_items) instead of (N_interactions x N_interactions).
+    Excludes train-seen items from top-K to measure discovery of new relevant items.
     """
     model.eval()
     all_user_ids = []
@@ -62,8 +63,24 @@ def evaluate_candidate_gen(model, test_loader, device, ks, chunk_size=1024):
         m_idx = movie_id_to_idx[mid]
         ground_truth.setdefault(u_idx, set()).add(m_idx)
 
+    # Build train_seen: user_idx -> set of item_indices seen in training
+    train_interactions = {}
+    for uid, mid in zip(train_df["user_id"], train_df["movie_id"]):
+        train_interactions.setdefault(uid, set()).add(mid)
+
+    train_seen = {}
+    for u_idx, raw_uid in enumerate(unique_user_ids):
+        seen_movie_ids = train_interactions.get(raw_uid, set())
+        seen_item_indices = set()
+        for mid in seen_movie_ids:
+            if mid in movie_id_to_idx:
+                seen_item_indices.add(movie_id_to_idx[mid])
+        if seen_item_indices:
+            train_seen[u_idx] = seen_item_indices
+
     return RetrievalMetrics.chunked_recall_at_k(
-        unique_user_embs, unique_item_embs, ground_truth, ks, chunk_size
+        unique_user_embs, unique_item_embs, ground_truth, ks,
+        chunk_size, train_seen
     )
 
 
@@ -114,8 +131,9 @@ def evaluate(config_path: str = "configs/default.yaml"):
     logger.info("Full Model Evaluation on Test Set")
     logger.info("=" * 60)
 
-    # Load test data
+    # Load data
     test_df = pd.read_parquet(config["paths"]["processed_data_dir"] + "/test.parquet")
+    train_df = pd.read_parquet(config["paths"]["processed_data_dir"] + "/train_candidate_gen.parquet")
 
     # Load encoder
     encoder = FeatureEncoder(config)
@@ -144,6 +162,7 @@ def evaluate(config_path: str = "configs/default.yaml"):
     cg_metrics = evaluate_candidate_gen(
         cg_model, cg_loader, device,
         config["evaluation"]["ks"],
+        train_df,
         chunk_size=config["evaluation"]["eval_chunk_size"],
     )
 

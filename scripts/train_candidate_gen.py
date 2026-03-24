@@ -22,16 +22,22 @@ from src.utils import load_config, set_seed, get_device, get_logger
 logger = get_logger(__name__)
 
 
-def create_retrieval_eval_fn(ks, chunk_size=1024):
+def create_retrieval_eval_fn(ks, train_df, chunk_size=1024):
     """Create an evaluation function for retrieval metrics.
 
     Deduplicates user and item embeddings so the similarity matrix is
     (num_unique_users x num_unique_items) instead of (N_interactions x N_interactions).
+    Excludes train-seen items from top-K to measure discovery of new relevant items.
 
     Args:
         ks: List of K values for Recall@K.
+        train_df: Training DataFrame with user_id and movie_id columns.
         chunk_size: Number of users to score per chunk (controls peak RAM).
     """
+    # Pre-build raw train interactions: user_id -> set of movie_ids
+    train_interactions = {}
+    for uid, mid in zip(train_df["user_id"], train_df["movie_id"]):
+        train_interactions.setdefault(uid, set()).add(mid)
 
     @torch.no_grad()
     def eval_fn(model, val_loader, device):
@@ -68,8 +74,20 @@ def create_retrieval_eval_fn(ks, chunk_size=1024):
             m_idx = movie_id_to_idx[mid]
             ground_truth.setdefault(u_idx, set()).add(m_idx)
 
+        # Build train_seen: user_idx -> set of item_indices seen in training
+        train_seen = {}
+        for u_idx, raw_uid in enumerate(unique_user_ids):
+            seen_movie_ids = train_interactions.get(raw_uid, set())
+            seen_item_indices = set()
+            for mid in seen_movie_ids:
+                if mid in movie_id_to_idx:
+                    seen_item_indices.add(movie_id_to_idx[mid])
+            if seen_item_indices:
+                train_seen[u_idx] = seen_item_indices
+
         return RetrievalMetrics.chunked_recall_at_k(
-            unique_user_embs, unique_item_embs, ground_truth, ks, chunk_size
+            unique_user_embs, unique_item_embs, ground_truth, ks,
+            chunk_size, train_seen
         )
 
     return eval_fn
@@ -122,6 +140,7 @@ def train_candidate_gen(config_path: str = "configs/default.yaml"):
     loss_fn = ContrastiveLoss()
     eval_fn = create_retrieval_eval_fn(
         config["evaluation"]["ks"],
+        train_df,
         chunk_size=config["evaluation"]["eval_chunk_size"],
     )
 

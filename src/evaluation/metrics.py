@@ -30,6 +30,7 @@ class RetrievalMetrics:
         ground_truth: Dict[int, set],
         ks: List[int],
         chunk_size: int = 1024,
+        train_seen: Dict[int, set] = None,
     ) -> Dict[str, float]:
         """Compute Recall@K using chunked similarity to bound peak memory.
 
@@ -45,6 +46,9 @@ class RetrievalMetrics:
             ground_truth: Maps user index -> set of positive item indices.
             ks: List of K values for Recall@K.
             chunk_size: Number of users to process per chunk.
+            train_seen: Optional. Maps user index -> set of item indices the user
+                interacted with during training. These items are masked to -inf
+                before topk so they cannot occupy top-K slots.
 
         Returns:
             Dictionary mapping metric names (e.g. "Recall@5") to values.
@@ -57,6 +61,15 @@ class RetrievalMetrics:
             end = min(start + chunk_size, n_users)
             # (chunk, D) @ (D, num_items) -> (chunk, num_items)
             chunk_scores = torch.mm(user_embs[start:end], item_embs.T)
+
+            # Mask train-seen items so they can't appear in top-K
+            if train_seen:
+                for i, user_idx in enumerate(range(start, end)):
+                    seen = train_seen.get(user_idx, set())
+                    if seen:
+                        seen_indices = list(seen)
+                        chunk_scores[i, seen_indices] = float("-inf")
+
             _, top_indices = torch.topk(chunk_scores, max_k, dim=1)
             top_indices = top_indices.numpy()
 
