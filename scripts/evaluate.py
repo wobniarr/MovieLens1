@@ -156,7 +156,7 @@ def evaluate(config_path: str = "configs/default.yaml"):
         cg_dataset,
         batch_size=config["candidate_gen"]["batch_size"],
         shuffle=False,
-        drop_last=True,
+        drop_last=False,  # Evaluate all interactions, don't drop tail batch
     )
 
     cg_metrics = evaluate_candidate_gen(

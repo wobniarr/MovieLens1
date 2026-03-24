@@ -110,7 +110,7 @@ def train_candidate_gen(config_path: str = "configs/default.yaml"):
 
     # Initialize feature encoder
     encoder = FeatureEncoder(config)
-    encoder.fit(train_df)
+    encoder.fit(pd.concat([train_df, val_df], ignore_index=True))
     encoder.save_vocabs()
     vocab_sizes = encoder.get_vocab_sizes()
 
@@ -132,7 +132,7 @@ def train_candidate_gen(config_path: str = "configs/default.yaml"):
         batch_size=config["candidate_gen"]["batch_size"],
         shuffle=False,
         num_workers=config["training"]["num_workers"],
-        drop_last=True,
+        drop_last=False,  # Evaluate all interactions, don't drop tail batch
     )
 
     # Initialize model, loss, trainer
