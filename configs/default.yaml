@@ -55,7 +55,7 @@ training:
   device: "cuda"
   gradient_clip_norm: 1.0
   use_mixed_precision: false  # set true if GPU supports it
-  num_workers: 2              # DataLoader workers (0 = main process)
+  num_workers: 4              # DataLoader workers (0 = main process)
   # log_every_n_steps: 100   # uncomment to enable mid-epoch logging
   seed: 42
 
